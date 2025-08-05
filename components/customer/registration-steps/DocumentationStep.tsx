@@ -46,6 +46,7 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
     form18: directors.map(() => null),
     addressProof: null,
     // Additional documents will be stored with keys like additional_0, additional_1, etc.
+    // Step 3 additional documents will be stored with keys like step3_additional_0, step3_additional_1, etc.
   })
   const [documentsPublished, setDocumentsPublished] = useState(companyData.documentsPublished || false)
 
@@ -71,7 +72,12 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
         form18: Array.isArray(companyData.customerDocuments.form18)
           ? companyData.customerDocuments.form18
           : directors.map(() => null),
-        addressProof: companyData.customerDocuments.addressProof || null
+        addressProof: companyData.customerDocuments.addressProof || null,
+        // Load step 3 signed additional documents
+        ...(companyData.step3SignedAdditionalDoc && Object.keys(companyData.step3SignedAdditionalDoc).reduce((acc, key, index) => {
+          acc[`step3_additional_${index}`] = companyData.step3SignedAdditionalDoc[key];
+          return acc;
+        }, {}))
       })
     }
 
@@ -296,9 +302,44 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
         const originalDoc = additionalDocuments[additionalIndex]
 
         if (originalDoc) {
-          // Add the signed additional document to customerDocuments
+          // Initialize additionalDocuments if it doesn't exist
           customerDocuments.additionalDocuments = customerDocuments.additionalDocuments || {}
+
+          // Add the current signed additional document
           customerDocuments.additionalDocuments[originalDoc.title] = document
+
+          // Include ALL previously uploaded additional documents
+          if (companyData.additionalDocuments && companyData.additionalDocuments.length > 0) {
+            companyData.additionalDocuments.forEach((doc: any, index: number) => {
+              const signedDoc = currentSignedDocuments[`additional_${index}`]
+              if (signedDoc && typeof signedDoc === 'object' && index !== additionalIndex) {
+                customerDocuments.additionalDocuments[doc.title] = signedDoc
+              }
+            })
+          }
+        }
+      } else if (documentType.startsWith('step3_additional_')) {
+        // Handle step 3 additional documents
+        const step3AdditionalIndex = parseInt(documentType.split('_')[2])
+        const step3AdditionalDocuments = companyData.step3AdditionalDoc || []
+        const originalDoc = step3AdditionalDocuments[step3AdditionalIndex]
+
+        if (originalDoc) {
+          // Initialize step3SignedAdditionalDoc if it doesn't exist
+          customerDocuments.step3SignedAdditionalDoc = customerDocuments.step3SignedAdditionalDoc || {}
+
+          // Add the current signed step 3 additional document
+          customerDocuments.step3SignedAdditionalDoc[originalDoc.title] = document
+
+          // Include ALL previously uploaded step 3 additional documents
+          if (companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0) {
+            companyData.step3AdditionalDoc.forEach((doc: any, index: number) => {
+              const signedDoc = currentSignedDocuments[`step3_additional_${index}`]
+              if (signedDoc && typeof signedDoc === 'object' && index !== step3AdditionalIndex) {
+                customerDocuments.step3SignedAdditionalDoc[doc.title] = signedDoc
+              }
+            })
+          }
         }
       } else {
         // For non-additional documents, include existing additional documents
@@ -308,6 +349,17 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
             const signedDoc = currentSignedDocuments[`additional_${index}`]
             if (signedDoc && typeof signedDoc === 'object') {
               customerDocuments.additionalDocuments[doc.title] = signedDoc
+            }
+          })
+        }
+
+        // Include existing step 3 additional documents
+        if (companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0) {
+          customerDocuments.step3SignedAdditionalDoc = {}
+          companyData.step3AdditionalDoc.forEach((doc: any, index: number) => {
+            const signedDoc = currentSignedDocuments[`step3_additional_${index}`]
+            if (signedDoc && typeof signedDoc === 'object') {
+              customerDocuments.step3SignedAdditionalDoc[doc.title] = signedDoc
             }
           })
         }
@@ -363,6 +415,17 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
           const signedDoc = currentSignedDocuments[`additional_${index}`]
           if (signedDoc && typeof signedDoc === 'object') {
             customerDocuments.additionalDocuments[doc.title] = signedDoc
+          }
+        })
+      }
+
+      // Handle step 3 additional documents in Form 18 function as well
+      if (companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0) {
+        customerDocuments.step3SignedAdditionalDoc = {}
+        companyData.step3AdditionalDoc.forEach((doc: any, index: number) => {
+          const signedDoc = currentSignedDocuments[`step3_additional_${index}`]
+          if (signedDoc && typeof signedDoc === 'object') {
+            customerDocuments.step3SignedAdditionalDoc[doc.title] = signedDoc
           }
         })
       }
@@ -449,6 +512,11 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
     ? companyData.additionalDocuments.every((doc: any, index: number) => !!signedDocuments[`additional_${index}`])
     : true
 
+  // Check if all step 3 additional documents are uploaded
+  const step3AdditionalDocumentsUploaded = companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0
+    ? companyData.step3AdditionalDoc.every((doc: any, index: number) => !!signedDocuments[`step3_additional_${index}`])
+    : true
+
   const allSignedDocumentsUploaded =
     signedDocuments.form1 &&
     signedDocuments.letterOfEngagement &&
@@ -458,7 +526,9 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
     // Only require address proof if business address number is not provided
     (!isAddressProofRequired || signedDocuments.addressProof) &&
     // Check if all additional documents are uploaded
-    additionalDocumentsUploaded
+    additionalDocumentsUploaded &&
+    // Check if all step 3 additional documents are uploaded
+    step3AdditionalDocumentsUploaded
 
   console.log('📝 Customer Step 3 - allSignedDocumentsUploaded check:', {
     form1: !!signedDocuments.form1,
@@ -472,6 +542,7 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
     additionalDocumentsCount: companyData.additionalDocuments?.length || 0,
     step3AdditionalDocumentsCount: companyData.step3AdditionalDoc?.length || 0,
     additionalDocumentsUploaded,
+    step3AdditionalDocumentsUploaded,
     allSignedDocumentsUploaded
   });
 
@@ -564,6 +635,21 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
               const signedDoc = signedDocuments[`additional_${index}`]
               if (signedDoc && typeof signedDoc === 'object') {
                 customerDocuments.additionalDocuments[doc.title] = {
+                  ...signedDoc,
+                  signedByCustomer: true,
+                  submittedAt: new Date().toISOString(),
+                }
+              }
+            })
+          }
+
+          // Add step 3 additional documents to customerDocuments
+          if (companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0) {
+            customerDocuments.step3SignedAdditionalDoc = {}
+            companyData.step3AdditionalDoc.forEach((doc: any, index: number) => {
+              const signedDoc = signedDocuments[`step3_additional_${index}`]
+              if (signedDoc && typeof signedDoc === 'object') {
+                customerDocuments.step3SignedAdditionalDoc[doc.title] = {
                   ...signedDoc,
                   signedByCustomer: true,
                   submittedAt: new Date().toISOString(),
@@ -906,6 +992,24 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
                           description={`Upload signed version of ${doc.title}`}
                           document={signedDocuments[`additional_${index}`] || null}
                           onUpload={(file) => handleFileUpload(`additional_${index}`, file)}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0 && (
+                    <>
+                      <div className="col-span-full mt-4 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">Step 3 Additional Documents</h3>
+                        <p className="text-sm text-gray-600">Upload signed versions of step 3 additional documents</p>
+                      </div>
+                      {companyData.step3AdditionalDoc.map((doc: any, index: number) => (
+                        <DocumentUploadCard
+                          key={`step3-additional-upload-${index}`}
+                          title={`Signed ${doc.title}`}
+                          description={`Upload signed version of ${doc.title}`}
+                          document={signedDocuments[`step3_additional_${index}`] || null}
+                          onUpload={(file) => handleFileUpload(`step3_additional_${index}`, file)}
                         />
                       ))}
                     </>

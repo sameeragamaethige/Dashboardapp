@@ -98,6 +98,7 @@ export async function initializeDatabase() {
         customer_address_proof JSON,
         incorporation_certificate JSON,
         step3_additional_doc JSON,
+        step3_signed_additional_doc JSON,
         -- Company Details Fields
         company_name_english VARCHAR(255),
         company_name_sinhala VARCHAR(255),
@@ -207,7 +208,8 @@ async function migrateDatabase(connection: any) {
       { name: 'other_business_activities', type: 'TEXT' },
       { name: 'drama_sedaka_division', type: 'VARCHAR(255)' },
       { name: 'business_email', type: 'VARCHAR(255)' },
-      { name: 'business_contact_number', type: 'VARCHAR(255)' }
+      { name: 'business_contact_number', type: 'VARCHAR(255)' },
+      { name: 'step3_signed_additional_doc', type: 'JSON' }
     ];
 
     // Get existing columns
