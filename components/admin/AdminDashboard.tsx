@@ -621,14 +621,18 @@ export default function AdminDashboard({
                                         return '100%';
                                       }
 
-                                      const stepMap: { [key: string]: number } = {
-                                        'payment-processing': 1,
-                                        'company-details': 2,
-                                        'documentation': 3,
-                                        'incorporation-processing': 4
+                                      // Calculate progress based on completed steps
+                                      // When currentStep is "company-details", step 1 is completed (25%)
+                                      // When currentStep is "documentation", step 2 is completed (50%)
+                                      // When currentStep is "incorporate", step 3 is completed (75%)
+                                      const completedStepsMap: { [key: string]: number } = {
+                                        'contact-details': 0,  // No steps completed yet
+                                        'company-details': 1,  // Step 1 completed (25%)
+                                        'documentation': 2,    // Step 2 completed (50%)
+                                        'incorporate': 3       // Step 3 completed (75%)
                                       };
-                                      const currentStepNumber = stepMap[currentStep] || 1;
-                                      const percentage = Math.round((currentStepNumber / 4) * 100);
+                                      const completedSteps = completedStepsMap[currentStep] || 0;
+                                      const percentage = Math.round((completedSteps / 4) * 100);
                                       return `${percentage}%`;
                                     })()}
                                   </span>
@@ -646,72 +650,21 @@ export default function AdminDashboard({
                                           return '100%';
                                         }
 
-                                        const stepMap: { [key: string]: number } = {
-                                          'payment-processing': 1,
-                                          'company-details': 2,
-                                          'documentation': 3,
-                                          'incorporation-processing': 4
+                                        // Calculate progress based on completed steps
+                                        const completedStepsMap: { [key: string]: number } = {
+                                          'contact-details': 0,  // No steps completed yet
+                                          'company-details': 1,  // Step 1 completed (25%)
+                                          'documentation': 2,    // Step 2 completed (50%)
+                                          'incorporate': 3       // Step 3 completed (75%)
                                         };
-                                        const currentStepNumber = stepMap[currentStep] || 1;
-                                        // Calculate width to align with numbered steps
-                                        // Each step takes 25% of the width, but we want to fill to the center of the current step
-                                        return ((currentStepNumber - 0.5) / 4) * 100;
+                                        const completedSteps = completedStepsMap[currentStep] || 0;
+                                        // Calculate width based on actual percentage (no alignment needed since steps are removed)
+                                        return (completedSteps / 4) * 100;
                                       })()}%`
                                     }}
                                   ></div>
                                 </div>
-                                <div className="flex justify-between mt-1">
-                                  {[1, 2, 3, 4].map((step) => {
-                                    const currentStep = company.currentStep || 'payment-processing';
-                                    const status = company.status || 'payment-processing';
 
-                                    // If status is completed, all steps are completed
-                                    const isCompleted = status === 'completed' ? true : step <= (() => {
-                                      const stepMap: { [key: string]: number } = {
-                                        'payment-processing': 1,
-                                        'company-details': 2,
-                                        'documentation': 3,
-                                        'incorporation-processing': 4
-                                      };
-                                      return stepMap[currentStep] || 1;
-                                    })();
-
-                                    const isCurrent = step === (() => {
-                                      const stepMap: { [key: string]: number } = {
-                                        'payment-processing': 1,
-                                        'company-details': 2,
-                                        'documentation': 3,
-                                        'incorporation-processing': 4
-                                      };
-                                      return stepMap[currentStep] || 1;
-                                    })();
-
-                                    const stepLabels = ['Payment', 'Details', 'Docs', 'Complete'];
-
-                                    return (
-                                      <div key={step} className="flex flex-col items-center">
-                                        <div className="w-3 h-3 mb-1">
-                                          <div className={`w-full h-full rounded-full flex items-center justify-center ${isCompleted
-                                            ? 'bg-green-500'
-                                            : isCurrent
-                                              ? 'bg-primary'
-                                              : 'bg-gray-400'
-                                            }`}>
-                                            <span className="text-[8px] text-white font-bold">{step}</span>
-                                          </div>
-                                        </div>
-                                        <span className={`text-[10px] ${isCompleted
-                                          ? 'text-green-600 font-medium'
-                                          : isCurrent
-                                            ? 'text-primary font-medium'
-                                            : 'text-gray-500'
-                                          }`}>
-                                          {stepLabels[step - 1]}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
                                 <div className="mt-2 text-center">
                                   <span className="text-xs font-medium text-primary">
                                     {(() => {
@@ -724,12 +677,12 @@ export default function AdminDashboard({
                                       }
 
                                       const stepNames: { [key: string]: string } = {
-                                        'payment-processing': 'Payment Processing',
+                                        'contact-details': 'Contact Details',
                                         'company-details': 'Company Details',
                                         'documentation': 'Documentation',
-                                        'incorporation-processing': 'Incorporation Processing'
+                                        'incorporate': 'Incorporation'
                                       };
-                                      return stepNames[currentStep] || 'Payment Processing';
+                                      return stepNames[currentStep] || 'Contact Details';
                                     })()}
                                   </span>
                                 </div>
