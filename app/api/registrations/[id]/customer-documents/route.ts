@@ -33,6 +33,7 @@ export async function PUT(
                 customer_aoa = ?,
                 customer_form18 = ?,
                 customer_address_proof = ?,
+                step3_signed_additional_doc = ?,
                 documents_acknowledged = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?`,
@@ -42,6 +43,7 @@ export async function PUT(
                 customerDocuments.aoa ? JSON.stringify(customerDocuments.aoa) : null,
                 customerDocuments.form18 ? JSON.stringify(customerDocuments.form18) : null,
                 customerDocuments.addressProof ? JSON.stringify(customerDocuments.addressProof) : null,
+                customerDocuments.step3SignedAdditionalDoc ? JSON.stringify(customerDocuments.step3SignedAdditionalDoc) : null,
                 body.documentsAcknowledged || false,
                 id
             ]

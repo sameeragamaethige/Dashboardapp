@@ -13,6 +13,7 @@
     "migrate-files": "node scripts/migrate-file-storage.js",
     "migrate-step3-signed": "node scripts/migrate-step3-signed-additional-doc.js",
     "test-step3-signed": "node scripts/test-step3-signed-additional-doc.js",
+    "test-step3-integration": "node scripts/test-step3-signed-additional-doc-integration.js",
     "test-files": "node lib/test-file-storage.ts",
     "test-mysql": "node scripts/test-mysql-connection.js"
   },
