@@ -37,7 +37,7 @@ const testCompanies = [
 
 // Progress calculation function (AdminDashboard logic)
 function calculateAdminProgress(company) {
-    const currentStep = company.currentStep || 'payment-processing';
+    const currentStep = company.currentStep || 'contact-details';
     const status = company.status || 'payment-processing';
 
     // If status is completed, show 100%
@@ -45,14 +45,18 @@ function calculateAdminProgress(company) {
         return 100;
     }
 
-    const stepMap = {
-        'payment-processing': 1,
-        'company-details': 2,
-        'documentation': 3,
-        'incorporation-processing': 4
+    // Calculate progress based on completed steps
+    // When currentStep is "company-details", step 1 is completed (25%)
+    // When currentStep is "documentation", step 2 is completed (50%)
+    // When currentStep is "incorporate", step 3 is completed (75%)
+    const completedStepsMap = {
+        'contact-details': 0,  // No steps completed yet
+        'company-details': 1,  // Step 1 completed (25%)
+        'documentation': 2,    // Step 2 completed (50%)
+        'incorporate': 3       // Step 3 completed (75%)
     };
-    const currentStepNumber = stepMap[currentStep] || 1;
-    const percentage = Math.round((currentStepNumber / 4) * 100);
+    const completedSteps = completedStepsMap[currentStep] || 0;
+    const percentage = Math.round((completedSteps / 4) * 100);
     return percentage;
 }
 
@@ -96,6 +100,30 @@ testCompanies.forEach((company, index) => {
     console.log(`   ✅ Expected: ${company.status === 'completed' ? '100%' : 'Variable'}%`);
     console.log("");
 });
+
+// Test specific user scenario
+console.log("🎯 Testing User's Specific Scenario\n");
+
+const userScenario = {
+    description: "Customer completed step 1 (contact-details), moved to step 2 (company-details)",
+    status: "payment-processing",
+    currentStep: "company-details",
+    expectedAdmin: 25,
+    expectedCustomer: 25
+};
+
+const adminProgress = calculateAdminProgress(userScenario);
+const customerProgress = calculateCustomerProgress(userScenario);
+
+const adminPass = adminProgress === userScenario.expectedAdmin;
+const customerPass = customerProgress === userScenario.expectedCustomer;
+
+console.log(`📊 User Scenario: ${userScenario.description}`);
+console.log(`   Status: "${userScenario.status}"`);
+console.log(`   Current Step: "${userScenario.currentStep}"`);
+console.log(`   Admin Progress: ${adminProgress}% ${adminPass ? '✅' : '❌'} (Expected: ${userScenario.expectedAdmin}%)`);
+console.log(`   Customer Progress: ${customerProgress}% ${customerPass ? '✅' : '❌'} (Expected: ${userScenario.expectedCustomer}%)`);
+console.log("");
 
 // Test edge cases
 console.log("🔍 Testing Edge Cases\n");
