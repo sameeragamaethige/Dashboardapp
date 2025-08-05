@@ -11,6 +11,8 @@
     "init-db": "node scripts/init-database.js",
     "migrate-db": "node scripts/migrate-database.js",
     "migrate-files": "node scripts/migrate-file-storage.js",
+    "migrate-step3-signed": "node scripts/migrate-step3-signed-additional-doc.js",
+    "test-step3-signed": "node scripts/test-step3-signed-additional-doc.js",
     "test-files": "node lib/test-file-storage.ts",
     "test-mysql": "node scripts/test-mysql-connection.js"
   },
@@ -49,6 +51,7 @@
     "clsx": "^2.1.1",
     "cmdk": "latest",
     "date-fns": "4.1.0",
+    "dotenv": "^17.2.1",
     "embla-carousel-react": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
