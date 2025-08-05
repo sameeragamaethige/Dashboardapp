@@ -440,14 +440,21 @@ export default function CustomerDashboard({ user, navigateTo, onLogout, registra
                     {companies.map((company: any, index: number) => {
                       // Progress: Only show completed steps. 1 step completed = 25%, 2 = 50%, 3 = 75%, 4 = 100%
                       let progressPercent = 0;
-                      const stepIdx = company.currentStep ? stepOrder.indexOf(company.currentStep) : -1;
-                      // Only count steps before the current step as completed
-                      if (stepIdx > 0 && stepIdx <= stepOrder.length) {
-                        progressPercent = (stepIdx / stepOrder.length) * 100;
-                      } else if (stepIdx === 0) {
-                        progressPercent = 0;
-                      } else if (stepIdx === stepOrder.length - 1) {
+                      const status = company.status || 'payment-processing';
+
+                      // If status is completed, show 100%
+                      if (status === 'completed') {
                         progressPercent = 100;
+                      } else {
+                        const stepIdx = company.currentStep ? stepOrder.indexOf(company.currentStep) : -1;
+                        // Only count steps before the current step as completed
+                        if (stepIdx > 0 && stepIdx <= stepOrder.length) {
+                          progressPercent = (stepIdx / stepOrder.length) * 100;
+                        } else if (stepIdx === 0) {
+                          progressPercent = 0;
+                        } else if (stepIdx === stepOrder.length - 1) {
+                          progressPercent = 100;
+                        }
                       }
                       return (
                         <Card

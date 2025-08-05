@@ -614,11 +614,18 @@ export default function AdminDashboard({
                                   <span className="text-xs text-gray-500">
                                     {(() => {
                                       const currentStep = company.currentStep || 'payment-processing';
+                                      const status = company.status || 'payment-processing';
+
+                                      // If status is completed, show 100%
+                                      if (status === 'completed') {
+                                        return '100%';
+                                      }
+
                                       const stepMap: { [key: string]: number } = {
                                         'payment-processing': 1,
                                         'company-details': 2,
                                         'documentation': 3,
-                                        'completed': 4
+                                        'incorporation-processing': 4
                                       };
                                       const currentStepNumber = stepMap[currentStep] || 1;
                                       const percentage = Math.round((currentStepNumber / 4) * 100);
@@ -632,11 +639,18 @@ export default function AdminDashboard({
                                     style={{
                                       width: `${(() => {
                                         const currentStep = company.currentStep || 'payment-processing';
+                                        const status = company.status || 'payment-processing';
+
+                                        // If status is completed, show 100%
+                                        if (status === 'completed') {
+                                          return '100%';
+                                        }
+
                                         const stepMap: { [key: string]: number } = {
                                           'payment-processing': 1,
                                           'company-details': 2,
                                           'documentation': 3,
-                                          'completed': 4
+                                          'incorporation-processing': 4
                                         };
                                         const currentStepNumber = stepMap[currentStep] || 1;
                                         // Calculate width to align with numbered steps
@@ -649,15 +663,28 @@ export default function AdminDashboard({
                                 <div className="flex justify-between mt-1">
                                   {[1, 2, 3, 4].map((step) => {
                                     const currentStep = company.currentStep || 'payment-processing';
-                                    const stepMap: { [key: string]: number } = {
-                                      'payment-processing': 1,
-                                      'company-details': 2,
-                                      'documentation': 3,
-                                      'completed': 4
-                                    };
-                                    const currentStepNumber = stepMap[currentStep] || 1;
-                                    const isCompleted = step <= currentStepNumber;
-                                    const isCurrent = step === currentStepNumber;
+                                    const status = company.status || 'payment-processing';
+
+                                    // If status is completed, all steps are completed
+                                    const isCompleted = status === 'completed' ? true : step <= (() => {
+                                      const stepMap: { [key: string]: number } = {
+                                        'payment-processing': 1,
+                                        'company-details': 2,
+                                        'documentation': 3,
+                                        'incorporation-processing': 4
+                                      };
+                                      return stepMap[currentStep] || 1;
+                                    })();
+
+                                    const isCurrent = step === (() => {
+                                      const stepMap: { [key: string]: number } = {
+                                        'payment-processing': 1,
+                                        'company-details': 2,
+                                        'documentation': 3,
+                                        'incorporation-processing': 4
+                                      };
+                                      return stepMap[currentStep] || 1;
+                                    })();
 
                                     const stepLabels = ['Payment', 'Details', 'Docs', 'Complete'];
 
@@ -689,11 +716,18 @@ export default function AdminDashboard({
                                   <span className="text-xs font-medium text-primary">
                                     {(() => {
                                       const currentStep = company.currentStep || 'payment-processing';
+                                      const status = company.status || 'payment-processing';
+
+                                      // If status is completed, show completion message
+                                      if (status === 'completed') {
+                                        return 'Registration Complete';
+                                      }
+
                                       const stepNames: { [key: string]: string } = {
                                         'payment-processing': 'Payment Processing',
                                         'company-details': 'Company Details',
                                         'documentation': 'Documentation',
-                                        'completed': 'Registration Complete'
+                                        'incorporation-processing': 'Incorporation Processing'
                                       };
                                       return stepNames[currentStep] || 'Payment Processing';
                                     })()}
