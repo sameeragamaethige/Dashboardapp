@@ -15,6 +15,10 @@
     "test-step3-signed": "node scripts/test-step3-signed-additional-doc.js",
     "test-step3-integration": "node scripts/test-step3-signed-additional-doc-integration.js",
     "test-admin-step3": "node scripts/test-admin-step3-display.js",
+    "test-admin-step3-docs": "node scripts/test-admin-step3-document-save.js",
+    "test-admin-step3-management": "node scripts/test-admin-step3-document-management.js",
+    "test-admin-customer-display": "node scripts/test-admin-customer-display.js",
+    "test-customer-additional-docs": "node scripts/test-customer-additional-docs-save.js",
     "test-files": "node lib/test-file-storage.ts",
     "test-mysql": "node scripts/test-mysql-connection.js"
   },

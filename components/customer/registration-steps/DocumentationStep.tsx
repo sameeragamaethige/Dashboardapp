@@ -302,9 +302,21 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
         const originalDoc = additionalDocuments[additionalIndex]
 
         if (originalDoc) {
-          // Add the signed additional document to customerDocuments
+          // Initialize additionalDocuments if it doesn't exist
           customerDocuments.additionalDocuments = customerDocuments.additionalDocuments || {}
+
+          // Add the current signed additional document
           customerDocuments.additionalDocuments[originalDoc.title] = document
+
+          // Include ALL previously uploaded additional documents
+          if (companyData.additionalDocuments && companyData.additionalDocuments.length > 0) {
+            companyData.additionalDocuments.forEach((doc: any, index: number) => {
+              const signedDoc = currentSignedDocuments[`additional_${index}`]
+              if (signedDoc && typeof signedDoc === 'object' && index !== additionalIndex) {
+                customerDocuments.additionalDocuments[doc.title] = signedDoc
+              }
+            })
+          }
         }
       } else if (documentType.startsWith('step3_additional_')) {
         // Handle step 3 additional documents
@@ -313,9 +325,21 @@ export default function DocumentationStep({ companyData, onComplete, bankDetails
         const originalDoc = step3AdditionalDocuments[step3AdditionalIndex]
 
         if (originalDoc) {
-          // Add the signed step 3 additional document to customerDocuments
+          // Initialize step3SignedAdditionalDoc if it doesn't exist
           customerDocuments.step3SignedAdditionalDoc = customerDocuments.step3SignedAdditionalDoc || {}
+
+          // Add the current signed step 3 additional document
           customerDocuments.step3SignedAdditionalDoc[originalDoc.title] = document
+
+          // Include ALL previously uploaded step 3 additional documents
+          if (companyData.step3AdditionalDoc && companyData.step3AdditionalDoc.length > 0) {
+            companyData.step3AdditionalDoc.forEach((doc: any, index: number) => {
+              const signedDoc = currentSignedDocuments[`step3_additional_${index}`]
+              if (signedDoc && typeof signedDoc === 'object' && index !== step3AdditionalIndex) {
+                customerDocuments.step3SignedAdditionalDoc[doc.title] = signedDoc
+              }
+            })
+          }
         }
       } else {
         // For non-additional documents, include existing additional documents
