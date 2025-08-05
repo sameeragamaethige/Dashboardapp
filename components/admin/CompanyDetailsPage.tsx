@@ -2448,8 +2448,9 @@ export default function CompanyDetailsPage({
                 // Check if customer has submitted any documents
                 const customerDocuments = selectedCompany.customerDocuments || {}
                 const hasCustomerDocuments = Object.keys(customerDocuments).length > 0
+                const hasStep3SignedAdditionalDocs = selectedCompany.step3SignedAdditionalDoc && Object.keys(selectedCompany.step3SignedAdditionalDoc).length > 0
 
-                if (!hasCustomerDocuments) {
+                if (!hasCustomerDocuments && !hasStep3SignedAdditionalDocs) {
                   return (
                     <Card className="mt-6">
                       <CardHeader className="pb-3">
@@ -2467,12 +2468,15 @@ export default function CompanyDetailsPage({
                 }
 
                 // Separate documents by type for better organization
-                const normalDocs = Object.entries(customerDocuments).filter(([key, doc]: [string, any]) => key !== 'form18' && key !== 'addressProof' && key !== 'additionalDocuments')
+                const normalDocs = Object.entries(customerDocuments).filter(([key, doc]: [string, any]) => key !== 'form18' && key !== 'addressProof' && key !== 'additionalDocuments' && key !== 'step3SignedAdditionalDoc')
                 const form18Docs = customerDocuments.form18 || []
                 const addressProofDoc = customerDocuments.addressProof ? ['addressProof', customerDocuments.addressProof] : null
 
                 // Handle additional documents
                 const additionalDocs = customerDocuments.additionalDocuments ? Object.entries(customerDocuments.additionalDocuments) : []
+
+                // Handle step 3 signed additional documents
+                const step3SignedAdditionalDocs = selectedCompany.step3SignedAdditionalDoc ? Object.entries(selectedCompany.step3SignedAdditionalDoc) : []
 
                 const renderDocumentCard = ([key, doc]: [string, any], isForm18 = false) => {
                   return (
@@ -2623,6 +2627,19 @@ export default function CompanyDetailsPage({
                               <p className="text-sm text-gray-600">Signed additional documents submitted by the customer</p>
                             </div>
                             {additionalDocs.map(([title, doc]: [string, any]) =>
+                              renderDocumentCard([title, { ...doc, title: `Signed ${title}` }])
+                            )}
+                          </>
+                        )}
+
+                        {/* Render step 3 signed additional documents */}
+                        {step3SignedAdditionalDocs.length > 0 && (
+                          <>
+                            <div className="col-span-full mt-4 mb-2">
+                              <h3 className="text-lg font-semibold text-gray-900">Step 3 Additional Documents</h3>
+                              <p className="text-sm text-gray-600">Signed step 3 additional documents submitted by the customer</p>
+                            </div>
+                            {step3SignedAdditionalDocs.map(([title, doc]: [string, any]) =>
                               renderDocumentCard([title, { ...doc, title: `Signed ${title}` }])
                             )}
                           </>

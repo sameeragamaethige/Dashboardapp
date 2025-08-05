@@ -102,6 +102,52 @@ const [signedDocuments, setSignedDocuments] = useState({
 - `step3AdditionalDocumentsUploaded`: Checks if all step 3 additional documents are uploaded
 - `allSignedDocumentsUploaded`: Now includes step 3 additional documents requirement
 
+### Admin Step 3 Component (`components/admin/CompanyDetailsPage.tsx`)
+
+#### Customer Submitted Documents Section
+- **Enhanced Display Logic**: Now checks for both `customerDocuments` and `step3SignedAdditionalDoc`
+- **Document Separation**: Step 3 signed additional documents are displayed in a separate section
+- **Conditional Rendering**: Shows documents section only if customer has submitted any documents
+
+#### New UI Section
+```tsx
+{/* Render step 3 signed additional documents */}
+{step3SignedAdditionalDocs.length > 0 && (
+  <>
+    <div className="col-span-full mt-4 mb-2">
+      <h3 className="text-lg font-semibold text-gray-900">Step 3 Additional Documents</h3>
+      <p className="text-sm text-gray-600">Signed step 3 additional documents submitted by the customer</p>
+    </div>
+    {step3SignedAdditionalDocs.map(([title, doc]: [string, any]) =>
+      renderDocumentCard([title, { ...doc, title: `Signed ${title}` }])
+    )}
+  </>
+)}
+```
+
+#### Enhanced Document Filtering
+```tsx
+// Separate documents by type for better organization
+const normalDocs = Object.entries(customerDocuments).filter(([key, doc]: [string, any]) => 
+  key !== 'form18' && key !== 'addressProof' && key !== 'additionalDocuments' && key !== 'step3SignedAdditionalDoc'
+)
+
+// Handle step 3 signed additional documents
+const step3SignedAdditionalDocs = selectedCompany.step3SignedAdditionalDoc ? Object.entries(selectedCompany.step3SignedAdditionalDoc) : []
+```
+
+#### Updated Condition Check
+```tsx
+// Check if customer has submitted any documents
+const customerDocuments = selectedCompany.customerDocuments || {}
+const hasCustomerDocuments = Object.keys(customerDocuments).length > 0
+const hasStep3SignedAdditionalDocs = selectedCompany.step3SignedAdditionalDoc && Object.keys(selectedCompany.step3SignedAdditionalDoc).length > 0
+
+if (!hasCustomerDocuments && !hasStep3SignedAdditionalDocs) {
+  // Show "No customer documents submitted yet" message
+}
+```
+
 ## Data Flow
 
 ### Admin Upload Flow
@@ -169,6 +215,7 @@ const [signedDocuments, setSignedDocuments] = useState({
 - `npm run migrate-step3-signed` - Run migration
 - `npm run test-step3-signed` - Test column functionality
 - `npm run test-step3-integration` - Test full integration
+- `npm run test-admin-step3` - Test admin step 3 display functionality
 
 ### Test Coverage
 - Database column creation and functionality
@@ -177,6 +224,8 @@ const [signedDocuments, setSignedDocuments] = useState({
 - Data persistence and retrieval
 - Frontend state management
 - UI rendering and interactions
+- Admin step 3 display functionality
+- Customer document submission and retrieval
 
 ## Usage
 
