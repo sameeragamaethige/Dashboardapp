@@ -53,7 +53,7 @@ type CompanyDetailsPageProps = {
 // Using LocalStorageService for database operations
 
 // DocumentUploadCard Component
-const DocumentUploadCard = ({ title, description, document, onUpload, disabled, showReplace }: any) => {
+const DocumentUploadCard = ({ title, description, document, onUpload, onDelete, disabled, showReplace }: any) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputId = `${title.replace(/\s+/g, "-").toLowerCase()}-replace-upload`;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +164,16 @@ const DocumentUploadCard = ({ title, description, document, onUpload, disabled, 
                     Replace
                   </Button>
                 </>
+              )}
+              {onDelete && !disabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               )}
             </div>
           </div>
@@ -836,7 +846,7 @@ export default function CompanyDetailsPage({
         return
       }
 
-      // For other documents (step 3), store temporarily without saving to file storage
+      // For step 3 documents, store temporarily first
       const document = {
         name: file.name,
         type: file.type,
@@ -868,6 +878,17 @@ export default function CompanyDetailsPage({
       setDocumentsChanged(true)
 
       console.log(`✅ Document stored temporarily: ${file.name}`)
+
+      // Immediately save ALL step3 documents to MySQL and file storage
+      console.log(`📝 Admin - Immediately saving step3 documents to database...`);
+      const saveResult = await saveAllStep3DocumentsToDatabase(companyId);
+
+      if (saveResult) {
+        console.log(`✅ Step3 documents saved to database successfully: ${file.name}`);
+      } else {
+        console.error(`❌ Failed to save step3 documents to database: ${file.name}`);
+        alert(`Failed to save document to database. Please try again.`);
+      }
     } catch (error) {
       console.error("Error uploading document:", error)
       // You might want to show a toast notification here
@@ -904,6 +925,272 @@ export default function CompanyDetailsPage({
     }
   }
 
+  // Function to save ALL step3 documents instantly to MySQL and file storage
+  const saveAllStep3DocumentsToDatabase = async (companyId: string) => {
+    try {
+      console.log('📝 Admin - Saving ALL step3 documents to MySQL database...');
+
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
+
+      // Get current registration from MySQL database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        return false;
+      }
+
+      const currentRegistration = await response.json();
+      console.log('📝 Admin - Current registration from database:', currentRegistration);
+
+      let updatedRegistration = { ...currentRegistration };
+      let hasChanges = false;
+
+      // Process form1
+      if (pendingDocuments.form1 && pendingDocuments.form1.file) {
+        console.log('📁 Processing form1 document...');
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.form1.file, companyId);
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.form1 = {
+            ...pendingDocuments.form1,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          };
+          hasChanges = true;
+          console.log('✅ Form1 uploaded and saved to database');
+        }
+      }
+
+      // Process letterOfEngagement
+      if (pendingDocuments.letterOfEngagement && pendingDocuments.letterOfEngagement.file) {
+        console.log('📁 Processing letter of engagement document...');
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.letterOfEngagement.file, companyId);
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.letterOfEngagement = {
+            ...pendingDocuments.letterOfEngagement,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          };
+          hasChanges = true;
+          console.log('✅ Letter of engagement uploaded and saved to database');
+        }
+      }
+
+      // Process aoa (articles of association)
+      if (pendingDocuments.aoa && pendingDocuments.aoa.file) {
+        console.log('📁 Processing articles of association document...');
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.aoa.file, companyId);
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.aoa = {
+            ...pendingDocuments.aoa,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          };
+          hasChanges = true;
+          console.log('✅ Articles of association uploaded and saved to database');
+        }
+      }
+
+      // Process form18 array
+      if (pendingDocuments.form18 && Array.isArray(pendingDocuments.form18)) {
+        console.log('📁 Processing form18 documents...');
+        const processedForm18 = [];
+        for (let i = 0; i < pendingDocuments.form18.length; i++) {
+          const doc = pendingDocuments.form18[i];
+          if (doc && doc.file) {
+            const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId);
+            if (uploadResult.success && uploadResult.file) {
+              processedForm18.push({
+                ...doc,
+                url: uploadResult.file.url,
+                filePath: uploadResult.file.filePath,
+                id: uploadResult.file.id,
+                file: undefined // Remove the file object
+              });
+              console.log(`✅ Form18 document ${i + 1} uploaded and saved to database`);
+            }
+          } else if (doc) {
+            processedForm18.push(doc);
+          } else {
+            processedForm18.push(null);
+          }
+        }
+        if (processedForm18.length > 0) {
+          updatedRegistration.form18 = processedForm18;
+          hasChanges = true;
+        }
+      }
+
+      // Process step3 additional documents
+      if (pendingStep3Documents.step3AdditionalDoc && Array.isArray(pendingStep3Documents.step3AdditionalDoc)) {
+        console.log('📁 Processing step3 additional documents...');
+        const processedStep3Documents = [];
+        for (const doc of pendingStep3Documents.step3AdditionalDoc) {
+          if (doc && doc.file) {
+            const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId);
+            if (uploadResult.success && uploadResult.file) {
+              processedStep3Documents.push({
+                ...doc,
+                url: uploadResult.file.url,
+                filePath: uploadResult.file.filePath,
+                id: uploadResult.file.id,
+                file: undefined // Remove the file object
+              });
+            }
+          } else if (doc) {
+            processedStep3Documents.push(doc);
+          }
+        }
+
+        // Merge with existing step3 documents
+        const existingStep3Documents = currentRegistration.step3AdditionalDoc || [];
+        updatedRegistration.step3AdditionalDoc = [...existingStep3Documents, ...processedStep3Documents];
+        hasChanges = true;
+        console.log(`✅ ${processedStep3Documents.length} step3 additional documents uploaded and saved to database`);
+      }
+
+      // Only update database if there are changes
+      if (hasChanges) {
+        updatedRegistration.updatedAt = new Date().toISOString();
+
+        // Update MySQL database
+        const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedRegistration)
+        });
+
+        if (updateResponse.ok) {
+          console.log('✅ ALL step3 documents saved to MySQL database successfully');
+
+          // Update local state
+          setSelectedCompany(prev => ({
+            ...prev,
+            ...updatedRegistration
+          }));
+
+          // Reset pending documents
+          setPendingDocuments({});
+          setPendingStep3Documents({});
+          setDocumentsChanged(false);
+
+          return true;
+        } else {
+          console.error('❌ Failed to save step3 documents to database:', updateResponse.status, updateResponse.statusText);
+          return false;
+        }
+      } else {
+        console.log('ℹ️ No new documents to save');
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Error saving step3 documents to database:', error);
+      return false;
+    }
+  }
+
+  // Function to save ONLY step3 additional documents to MySQL and file storage
+  const saveStep3AdditionalDocumentsToDatabase = async (companyId: string) => {
+    try {
+      console.log('📝 Admin - Saving step3 additional documents to MySQL database...');
+
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
+
+      // Get current registration from MySQL database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        return false;
+      }
+
+      const currentRegistration = await response.json();
+      console.log('📝 Admin - Current registration from database:', currentRegistration);
+
+      // Process only step3 additional documents
+      const pendingAdditionalDocuments = pendingStep3Documents.step3AdditionalDoc || [];
+      const processedStep3Documents = [];
+
+      for (const doc of pendingAdditionalDocuments) {
+        if (doc && doc.file) {
+          const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId);
+          if (uploadResult.success && uploadResult.file) {
+            processedStep3Documents.push({
+              ...doc,
+              url: uploadResult.file.url,
+              filePath: uploadResult.file.filePath,
+              id: uploadResult.file.id,
+              file: undefined // Remove the file object
+            });
+          }
+        } else if (doc) {
+          processedStep3Documents.push(doc);
+        }
+      }
+
+      if (processedStep3Documents.length > 0) {
+        // Merge with existing step3 documents
+        const existingStep3Documents = currentRegistration.step3AdditionalDoc || [];
+        const updatedStep3Documents = [...existingStep3Documents, ...processedStep3Documents];
+
+        // Update MySQL database
+        const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...currentRegistration,
+            step3AdditionalDoc: updatedStep3Documents,
+            updatedAt: new Date().toISOString(),
+          })
+        });
+
+        if (updateResponse.ok) {
+          console.log('✅ Step3 additional documents saved to MySQL database successfully');
+
+          // Update local state
+          setSelectedCompany(prev => ({
+            ...prev,
+            step3AdditionalDoc: updatedStep3Documents
+          }));
+
+          // Reset only the processed documents from pending state
+          setPendingStep3Documents(prev => ({
+            ...prev,
+            step3AdditionalDoc: []
+          }));
+
+          return true;
+        } else {
+          console.error('❌ Failed to save step3 additional documents to database:', updateResponse.status, updateResponse.statusText);
+          return false;
+        }
+      } else {
+        console.log('ℹ️ No new step3 additional documents to save');
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Error saving step3 additional documents to database:', error);
+      return false;
+    }
+  }
+
+
+
+  // Function to save step3 additional documents instantly to MySQL and file storage (for backward compatibility)
+  const saveStep3DocumentsToDatabase = async (companyId: string) => {
+    return await saveAllStep3DocumentsToDatabase(companyId);
+  }
+
   // Function to remove additional document
   const handleRemoveAdditionalDocument = async (companyId: string, documentIndex: number) => {
     try {
@@ -920,20 +1207,40 @@ export default function CompanyDetailsPage({
         return
       }
 
-      // If not pending, remove from existing documents
-      const currentAdditionalDocuments = selectedCompany.step3AdditionalDoc || []
+      // If not pending, remove from existing documents in MySQL database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        return;
+      }
+
+      const currentRegistration = await response.json();
+      const currentAdditionalDocuments = currentRegistration.step3AdditionalDoc || []
       const updatedAdditionalDocuments = currentAdditionalDocuments.filter((_: any, index: number) => index !== documentIndex)
 
-      const registration = await LocalStorageService.getRegistrationById(companyId)
-      if (registration) {
-        const updatedRegistration = {
-          ...registration,
+      // Update MySQL database
+      const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...currentRegistration,
           step3AdditionalDoc: updatedAdditionalDocuments,
           updatedAt: new Date().toISOString(),
-        }
-        await LocalStorageService.saveRegistration(updatedRegistration)
-        setSelectedCompany(updatedRegistration)
-        console.log(`✅ Existing step 3 additional document removed: index ${documentIndex}`)
+        })
+      });
+
+      if (updateResponse.ok) {
+        console.log('✅ Step3 additional document removed from MySQL database successfully');
+
+        // Update local state
+        setSelectedCompany(prev => ({
+          ...prev,
+          step3AdditionalDoc: updatedAdditionalDocuments
+        }));
+      } else {
+        console.error('❌ Failed to remove step3 document from database:', updateResponse.status, updateResponse.statusText);
       }
     } catch (error) {
       console.error("Error removing step 3 additional document:", error)
@@ -965,7 +1272,77 @@ export default function CompanyDetailsPage({
     }
 
     try {
-      await handleAdditionalDocumentUpload(selectedCompany._id, newDocument.title.trim(), newDocument.file)
+      console.log('📝 Admin - Starting immediate save of additional document...');
+
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
+
+      // Get current registration from MySQL database
+      const response = await fetch(`/api/registrations/${selectedCompany._id}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        alert('Failed to fetch registration data. Please try again.');
+        return;
+      }
+
+      const currentRegistration = await response.json();
+      console.log('📝 Admin - Current registration from database:', currentRegistration);
+
+      // Upload the file immediately
+      console.log('📁 Uploading file to file storage...');
+      const uploadResult = await fileUploadClient.uploadFile(newDocument.file, selectedCompany._id);
+      if (!uploadResult.success || !uploadResult.file) {
+        console.error('❌ Failed to upload file to file storage');
+        alert('Failed to upload file. Please try again.');
+        return;
+      }
+
+      console.log('✅ File uploaded to file storage successfully');
+
+      // Create the document object
+      const newDocumentData = {
+        name: newDocument.file.name,
+        type: newDocument.file.type,
+        size: newDocument.file.size,
+        title: newDocument.title.trim(),
+        uploadedAt: new Date().toISOString(),
+        url: uploadResult.file.url,
+        filePath: uploadResult.file.filePath,
+        id: uploadResult.file.id,
+      };
+
+      // Add to existing step3 documents
+      const existingStep3Documents = currentRegistration.step3AdditionalDoc || [];
+      const updatedStep3Documents = [...existingStep3Documents, newDocumentData];
+
+      console.log('📝 Saving document to MySQL database...');
+
+      // Update MySQL database immediately
+      const updateResponse = await fetch(`/api/registrations/${selectedCompany._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...currentRegistration,
+          step3AdditionalDoc: updatedStep3Documents,
+          updatedAt: new Date().toISOString(),
+        })
+      });
+
+      if (!updateResponse.ok) {
+        console.error('❌ Failed to save document to MySQL database:', updateResponse.status, updateResponse.statusText);
+        alert('Failed to save document to database. Please try again.');
+        return;
+      }
+
+      console.log('✅ Document saved to MySQL database successfully');
+
+      // Update local state
+      setSelectedCompany(prev => ({
+        ...prev,
+        step3AdditionalDoc: updatedStep3Documents
+      }));
 
       // Reset form
       setNewDocument({
@@ -973,8 +1350,14 @@ export default function CompanyDetailsPage({
         file: null
       })
       setIsAddDocumentDialogOpen(false)
+
+      // Show success message
+      console.log('✅ Step3 additional document added and saved to database successfully');
+      alert('Document uploaded and saved successfully!');
+
     } catch (error) {
       console.error("Error adding new document:", error)
+      alert('Error adding document. Please try again.');
     }
   }
 
@@ -1014,8 +1397,15 @@ export default function CompanyDetailsPage({
         return
       }
 
-      // If not pending, replace existing document
-      const existingDocuments = selectedCompany.step3AdditionalDoc || []
+      // If not pending, replace existing document in MySQL database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        return;
+      }
+
+      const currentRegistration = await response.json();
+      const existingDocuments = currentRegistration.step3AdditionalDoc || []
       const existingDoc = existingDocuments[documentIndex]
 
       if (!existingDoc) {
@@ -1023,11 +1413,56 @@ export default function CompanyDetailsPage({
         return
       }
 
-      // Remove the old document first
-      await handleRemoveAdditionalDocument(companyId, documentIndex)
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
 
-      // Add the new document with the same title
-      await handleAdditionalDocumentUpload(companyId, existingDoc.title, file)
+      // Upload the new file
+      const uploadResult = await fileUploadClient.uploadFile(file, companyId)
+      if (!uploadResult.success || !uploadResult.file) {
+        console.error('❌ Failed to upload replacement file')
+        return
+      }
+
+      // Create new document with uploaded file data
+      const newDocument = {
+        ...existingDoc,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        url: uploadResult.file.url,
+        filePath: uploadResult.file.filePath,
+        id: uploadResult.file.id,
+        uploadedAt: new Date().toISOString(),
+      }
+
+      // Update the document in the array
+      const updatedDocuments = [...existingDocuments]
+      updatedDocuments[documentIndex] = newDocument
+
+      // Update MySQL database
+      const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...currentRegistration,
+          step3AdditionalDoc: updatedDocuments,
+          updatedAt: new Date().toISOString(),
+        })
+      });
+
+      if (updateResponse.ok) {
+        console.log('✅ Step3 additional document replaced in MySQL database successfully');
+
+        // Update local state
+        setSelectedCompany(prev => ({
+          ...prev,
+          step3AdditionalDoc: updatedDocuments
+        }));
+      } else {
+        console.error('❌ Failed to replace step3 document in database:', updateResponse.status, updateResponse.statusText);
+      }
 
     } catch (error) {
       console.error("Error replacing step 3 additional document:", error)
@@ -1039,146 +1474,162 @@ export default function CompanyDetailsPage({
   // Function to publish documents to customer
   const publishDocumentsToCustomer = async (companyId: string) => {
     try {
+      console.log('📝 Admin - Publishing documents to customer...');
+
       // Import the file upload client
       const { fileUploadClient } = await import('@/lib/file-upload-client')
 
-      const registration = await LocalStorageService.getRegistrationById(companyId)
-      if (registration) {
-        // Process pending documents and save files to storage
-        let updatedRegistration = { ...registration }
+      // Get current registration from MySQL database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        return;
+      }
 
-        // Process form1
-        if (pendingDocuments.form1 && pendingDocuments.form1.file) {
-          const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.form1.file, companyId)
-          if (uploadResult.success && uploadResult.file) {
-            updatedRegistration.form1 = {
-              ...pendingDocuments.form1,
-              url: uploadResult.file.url,
-              filePath: uploadResult.file.filePath,
-              id: uploadResult.file.id,
-              file: undefined // Remove the file object
+      const currentRegistration = await response.json();
+      console.log('📝 Admin - Current registration from database:', currentRegistration);
+
+      // Process pending documents and save files to storage
+      let updatedRegistration = { ...currentRegistration }
+
+      // Process form1
+      if (pendingDocuments.form1 && pendingDocuments.form1.file) {
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.form1.file, companyId)
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.form1 = {
+            ...pendingDocuments.form1,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          }
+        }
+      }
+
+      // Process letterOfEngagement
+      if (pendingDocuments.letterOfEngagement && pendingDocuments.letterOfEngagement.file) {
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.letterOfEngagement.file, companyId)
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.letterOfEngagement = {
+            ...pendingDocuments.letterOfEngagement,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          }
+        }
+      }
+
+      // Process aoa
+      if (pendingDocuments.aoa && pendingDocuments.aoa.file) {
+        const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.aoa.file, companyId)
+        if (uploadResult.success && uploadResult.file) {
+          updatedRegistration.aoa = {
+            ...pendingDocuments.aoa,
+            url: uploadResult.file.url,
+            filePath: uploadResult.file.filePath,
+            id: uploadResult.file.id,
+            file: undefined // Remove the file object
+          }
+        }
+      }
+
+      // Process form18 array
+      if (pendingDocuments.form18 && Array.isArray(pendingDocuments.form18)) {
+        const processedForm18 = []
+        for (let i = 0; i < pendingDocuments.form18.length; i++) {
+          const doc = pendingDocuments.form18[i]
+          if (doc && doc.file) {
+            const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
+            if (uploadResult.success && uploadResult.file) {
+              processedForm18.push({
+                ...doc,
+                url: uploadResult.file.url,
+                filePath: uploadResult.file.filePath,
+                id: uploadResult.file.id,
+                file: undefined // Remove the file object
+              })
             }
+          } else if (doc) {
+            processedForm18.push(doc)
+          } else {
+            processedForm18.push(null)
+          }
+        }
+        updatedRegistration.form18 = processedForm18
+      }
+
+      // Process additional documents
+      if (pendingStep4Documents.additionalDocuments && Array.isArray(pendingStep4Documents.additionalDocuments)) {
+        const processedAdditionalDocuments = []
+        for (const doc of pendingStep4Documents.additionalDocuments) {
+          if (doc && doc.file) {
+            const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
+            if (uploadResult.success && uploadResult.file) {
+              processedAdditionalDocuments.push({
+                ...doc,
+                url: uploadResult.file.url,
+                filePath: uploadResult.file.filePath,
+                id: uploadResult.file.id,
+                file: undefined // Remove the file object
+              })
+            }
+          } else if (doc) {
+            processedAdditionalDocuments.push(doc)
           }
         }
 
-        // Process letterOfEngagement
-        if (pendingDocuments.letterOfEngagement && pendingDocuments.letterOfEngagement.file) {
-          const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.letterOfEngagement.file, companyId)
-          if (uploadResult.success && uploadResult.file) {
-            updatedRegistration.letterOfEngagement = {
-              ...pendingDocuments.letterOfEngagement,
-              url: uploadResult.file.url,
-              filePath: uploadResult.file.filePath,
-              id: uploadResult.file.id,
-              file: undefined // Remove the file object
+        // Merge with existing additional documents
+        const existingAdditionalDocuments = updatedRegistration.additionalDocuments || []
+        updatedRegistration.additionalDocuments = [...existingAdditionalDocuments, ...processedAdditionalDocuments]
+      }
+
+      // Process step 3 additional documents
+      if (pendingStep3Documents.step3AdditionalDoc && Array.isArray(pendingStep3Documents.step3AdditionalDoc)) {
+        const processedStep3Documents = []
+        for (const doc of pendingStep3Documents.step3AdditionalDoc) {
+          if (doc && doc.file) {
+            const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
+            if (uploadResult.success && uploadResult.file) {
+              processedStep3Documents.push({
+                ...doc,
+                url: uploadResult.file.url,
+                filePath: uploadResult.file.filePath,
+                id: uploadResult.file.id,
+                file: undefined // Remove the file object
+              })
             }
+          } else if (doc) {
+            processedStep3Documents.push(doc)
           }
         }
 
-        // Process aoa
-        if (pendingDocuments.aoa && pendingDocuments.aoa.file) {
-          const uploadResult = await fileUploadClient.uploadFile(pendingDocuments.aoa.file, companyId)
-          if (uploadResult.success && uploadResult.file) {
-            updatedRegistration.aoa = {
-              ...pendingDocuments.aoa,
-              url: uploadResult.file.url,
-              filePath: uploadResult.file.filePath,
-              id: uploadResult.file.id,
-              file: undefined // Remove the file object
-            }
-          }
-        }
+        // Merge with existing step 3 additional documents
+        const existingStep3Documents = updatedRegistration.step3AdditionalDoc || []
+        updatedRegistration.step3AdditionalDoc = [...existingStep3Documents, ...processedStep3Documents]
+      }
 
-        // Process form18 array
-        if (pendingDocuments.form18 && Array.isArray(pendingDocuments.form18)) {
-          const processedForm18 = []
-          for (let i = 0; i < pendingDocuments.form18.length; i++) {
-            const doc = pendingDocuments.form18[i]
-            if (doc && doc.file) {
-              const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
-              if (uploadResult.success && uploadResult.file) {
-                processedForm18.push({
-                  ...doc,
-                  url: uploadResult.file.url,
-                  filePath: uploadResult.file.filePath,
-                  id: uploadResult.file.id,
-                  file: undefined // Remove the file object
-                })
-              }
-            } else if (doc) {
-              processedForm18.push(doc)
-            } else {
-              processedForm18.push(null)
-            }
-          }
-          updatedRegistration.form18 = processedForm18
-        }
+      updatedRegistration.documentsPublished = true
+      updatedRegistration.documentsPublishedAt = new Date().toISOString()
+      updatedRegistration.status = "documents-published" // Set status to allow customer to see documents
+      updatedRegistration.updatedAt = new Date().toISOString()
 
-        // Process additional documents
-        if (pendingStep4Documents.additionalDocuments && Array.isArray(pendingStep4Documents.additionalDocuments)) {
-          const processedAdditionalDocuments = []
-          for (const doc of pendingStep4Documents.additionalDocuments) {
-            if (doc && doc.file) {
-              const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
-              if (uploadResult.success && uploadResult.file) {
-                processedAdditionalDocuments.push({
-                  ...doc,
-                  url: uploadResult.file.url,
-                  filePath: uploadResult.file.filePath,
-                  id: uploadResult.file.id,
-                  file: undefined // Remove the file object
-                })
-              }
-            } else if (doc) {
-              processedAdditionalDocuments.push(doc)
-            }
-          }
+      // Save to MySQL database
+      const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedRegistration)
+      });
 
-          // Merge with existing additional documents
-          const existingAdditionalDocuments = updatedRegistration.additionalDocuments || []
-          updatedRegistration.additionalDocuments = [...existingAdditionalDocuments, ...processedAdditionalDocuments]
-        }
-
-        // Process step 3 additional documents
-        if (pendingStep3Documents.step3AdditionalDoc && Array.isArray(pendingStep3Documents.step3AdditionalDoc)) {
-          const processedStep3Documents = []
-          for (const doc of pendingStep3Documents.step3AdditionalDoc) {
-            if (doc && doc.file) {
-              const uploadResult = await fileUploadClient.uploadFile(doc.file, companyId)
-              if (uploadResult.success && uploadResult.file) {
-                processedStep3Documents.push({
-                  ...doc,
-                  url: uploadResult.file.url,
-                  filePath: uploadResult.file.filePath,
-                  id: uploadResult.file.id,
-                  file: undefined // Remove the file object
-                })
-              }
-            } else if (doc) {
-              processedStep3Documents.push(doc)
-            }
-          }
-
-          // Merge with existing step 3 additional documents
-          const existingStep3Documents = updatedRegistration.step3AdditionalDoc || []
-          updatedRegistration.step3AdditionalDoc = [...existingStep3Documents, ...processedStep3Documents]
-        }
-
-        updatedRegistration.documentsPublished = true
-        updatedRegistration.documentsPublishedAt = new Date().toISOString()
-        updatedRegistration.status = "documents-published" // Set status to allow customer to see documents
-        updatedRegistration.updatedAt = new Date().toISOString()
-
-        // Save back to database
-        await LocalStorageService.saveRegistration(updatedRegistration)
+      if (updateResponse.ok) {
+        console.log('✅ Documents published to customer and saved to MySQL database successfully');
 
         // Update the selected company in state
         setSelectedCompany({
           ...updatedRegistration,
         })
-
-        // Don't dispatch any event to prevent navigation issues
-        // The state update above is sufficient for UI updates
 
         // Reset documentsChanged and pendingDocuments after publishing
         setDocumentsChanged(false)
@@ -1191,11 +1642,13 @@ export default function CompanyDetailsPage({
         setTimeout(() => {
           setShowPublishSuccess(false)
         }, 3000) // Hide after 3 seconds
-
-        console.log('✅ Documents published to customer and saved to file storage successfully')
+      } else {
+        console.error('❌ Failed to publish documents to database:', updateResponse.status, updateResponse.statusText);
+        alert('Failed to publish documents. Please try again.');
       }
     } catch (error) {
       console.error("Error publishing documents:", error)
+      alert('Error publishing documents. Please try again.');
     }
   }
 
@@ -2038,6 +2491,7 @@ export default function CompanyDetailsPage({
                         description="Step 3 Additional document"
                         document={doc}
                         onUpload={(file: File) => handleReplaceAdditionalDocument(selectedCompany._id, index, file)}
+                        onDelete={() => handleRemoveAdditionalDocument(selectedCompany._id, index)}
                         disabled={!canManage}
                         showReplace={canManage}
                       />
@@ -2051,6 +2505,7 @@ export default function CompanyDetailsPage({
                         description="Step 3 Additional document"
                         document={doc}
                         onUpload={(file: File) => handleReplaceAdditionalDocument(selectedCompany._id, index, file)}
+                        onDelete={() => handleRemoveAdditionalDocument(selectedCompany._id, index)}
                         disabled={!canManage}
                         showReplace={canManage}
                       />
