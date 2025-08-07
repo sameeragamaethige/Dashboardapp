@@ -33,7 +33,7 @@ export default function IncorporationCertificatePage({
         if (registration) {
           console.log('✅ Company data loaded from database:', registration)
           console.log('📄 Incorporation Certificate:', registration.incorporationCertificate)
-          console.log('📁 Additional Documents:', registration.additionalDocuments)
+          console.log('📁 Step 4 Additional Documents:', registration.step4FinalAdditionalDoc)
           setCompany(registration)
         } else {
           console.log('⚠️ Company not found in database, trying localStorage fallback')
@@ -45,7 +45,7 @@ export default function IncorporationCertificatePage({
             if (fallbackRegistration) {
               console.log('✅ Company found in localStorage fallback')
               console.log('📄 Incorporation Certificate (fallback):', fallbackRegistration.incorporationCertificate)
-              console.log('📁 Additional Documents (fallback):', fallbackRegistration.additionalDocuments)
+              console.log('📁 Step 4 Additional Documents (fallback):', fallbackRegistration.step4FinalAdditionalDoc)
               setCompany(fallbackRegistration)
             } else {
               setCompany(null)
@@ -217,21 +217,21 @@ export default function IncorporationCertificatePage({
               )}
             </div>
 
-            {/* Additional Documents Section */}
-            {company.additionalDocuments && company.additionalDocuments.length > 0 && (
+            {/* Step 4 Additional Documents Section */}
+            {company.step4FinalAdditionalDoc && company.step4FinalAdditionalDoc.length > 0 && (
               <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
                 <div className="flex items-start sm:items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
                     <FileText className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-medium text-gray-800 text-sm">Additional Documents</h4>
-                    <p className="text-xs text-muted-foreground">Supplementary documents</p>
+                    <h4 className="font-medium text-gray-800 text-sm">Step 4 Additional Documents</h4>
+                    <p className="text-xs text-muted-foreground">Additional documents provided by the administrator</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  {company.additionalDocuments.map((doc: any, index: number) => (
+                  {company.step4FinalAdditionalDoc.map((doc: any, index: number) => (
                     <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-start sm:items-center gap-2 flex-1 min-w-0">
                         <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
@@ -289,16 +289,16 @@ export default function IncorporationCertificatePage({
               </div>
             )}
 
-            {/* No Additional Documents Message */}
-            {(!company.additionalDocuments || company.additionalDocuments.length === 0) && (
+            {/* No Step 4 Additional Documents Message */}
+            {(!company.step4FinalAdditionalDoc || company.step4FinalAdditionalDoc.length === 0) && (
               <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
                 <div className="flex items-start sm:items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
                     <FileText className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-medium text-gray-800 text-sm">Additional Documents</h4>
-                    <p className="text-xs text-muted-foreground">Supplementary documents</p>
+                    <h4 className="font-medium text-gray-800 text-sm">Step 4 Additional Documents</h4>
+                    <p className="text-xs text-muted-foreground">Additional documents provided by the administrator</p>
                   </div>
                 </div>
 

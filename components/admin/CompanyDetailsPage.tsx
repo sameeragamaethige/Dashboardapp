@@ -978,6 +978,137 @@ export default function CompanyDetailsPage({
     }
   }
 
+  // Function to handle step 4 additional document upload with immediate save
+  const handleStep4AdditionalDocumentUpload = async (companyId: string, title: string, file: File): Promise<boolean> => {
+    try {
+      console.log(`📁 Admin - handleStep4AdditionalDocumentUpload called with:`);
+      console.log(`  - companyId: ${companyId}`);
+      console.log(`  - title: ${title}`);
+      console.log(`  - file.name: ${file.name}`);
+      console.log(`📁 Admin - Immediately uploading step 4 additional document: ${file.name}`);
+
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
+
+      // Upload file to file storage immediately
+      console.log('📁 Uploading file to file storage...');
+      const uploadResult = await fileUploadClient.uploadFile(file, companyId);
+
+      if (!uploadResult.success || !uploadResult.file) {
+        console.error('❌ File upload failed:', uploadResult.error);
+        toast({
+          title: "Error",
+          description: `Failed to upload file to storage: ${uploadResult.error}`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      console.log(`✅ File uploaded to storage successfully: ${file.name}`);
+
+      // Create document object with file storage data
+      const document = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        title: title,
+        url: uploadResult.file.url,
+        filePath: uploadResult.file.filePath,
+        id: uploadResult.file.id,
+        uploadedAt: uploadResult.file.uploadedAt,
+      }
+
+      console.log('📄 Created document object:', document);
+
+      // Get current registration from MySQL database
+      console.log('📝 Fetching current registration from database...');
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+        toast({
+          title: "Error",
+          description: "Failed to fetch registration data. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const currentRegistration = await response.json();
+      console.log('📝 Admin - Current registration from database:', currentRegistration);
+
+      // Add to existing step4 additional documents
+      const existingStep4Documents = currentRegistration.step4FinalAdditionalDoc || [];
+      const updatedStep4Documents = [...existingStep4Documents, document];
+
+      console.log('📄 Updated step4FinalAdditionalDoc array:', updatedStep4Documents);
+      console.log('📝 Saving step 4 additional document to MySQL database...');
+
+      // Update MySQL database immediately
+      const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...currentRegistration,
+          step4FinalAdditionalDoc: updatedStep4Documents,
+          updatedAt: new Date().toISOString(),
+        })
+      });
+
+      console.log('📥 Update response status:', updateResponse.status);
+      console.log('📥 Update response statusText:', updateResponse.statusText);
+
+      if (!updateResponse.ok) {
+        console.error('❌ Failed to save step 4 additional document to MySQL database:', updateResponse.status, updateResponse.statusText);
+        const errorText = await updateResponse.text();
+        console.error('Error details:', errorText);
+        toast({
+          title: "Error",
+          description: "Failed to save document to database. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const updateResult = await updateResponse.json();
+      console.log('✅ Update result:', updateResult);
+      console.log('✅ Step 4 additional document saved to MySQL database successfully');
+      console.log('📄 Updated step4FinalAdditionalDoc:', updatedStep4Documents);
+
+      // Update local state
+      setSelectedCompany(prev => {
+        console.log('🔄 Updating local state with step4FinalAdditionalDoc');
+        const updated = {
+          ...prev,
+          step4FinalAdditionalDoc: updatedStep4Documents
+        };
+        console.log('🔄 Updated selectedCompany:', updated);
+        return updated;
+      });
+
+      // Show success message
+      toast({
+        title: "Success",
+        description: "Additional document uploaded and saved successfully!",
+      });
+
+      console.log('✅ handleStep4AdditionalDocumentUpload completed successfully');
+      return true;
+
+    } catch (error) {
+      console.error("Error uploading step 4 additional document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to upload additional document. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }
+
   // Function to save ALL step3 documents instantly to MySQL and file storage
   const saveAllStep3DocumentsToDatabase = async (companyId: string) => {
     try {
@@ -1244,9 +1375,37 @@ export default function CompanyDetailsPage({
     return await saveAllStep3DocumentsToDatabase(companyId);
   }
 
-  // Function to remove additional document
+  // Function to remove additional document (handles both step 3 and step 4)
   const handleRemoveAdditionalDocument = async (companyId: string, documentIndex: number) => {
     try {
+      console.log(`🗑️ handleRemoveAdditionalDocument called with companyId: ${companyId}, documentIndex: ${documentIndex}`);
+
+      // Check if we're in step 4
+      const isStep4 = selectedCompany.currentStep === 'incorporate' || selectedCompany.status === 'incorporation-processing';
+      console.log('  - Is Step 4?', isStep4);
+
+      if (isStep4) {
+        console.log('🗑️ Removing step 4 additional document...');
+        await handleRemoveStep4AdditionalDocument(companyId, documentIndex);
+      } else {
+        console.log('🗑️ Removing step 3 additional document...');
+        await handleRemoveStep3AdditionalDocument(companyId, documentIndex);
+      }
+    } catch (error) {
+      console.error("Error removing additional document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Function to remove step 3 additional document
+  const handleRemoveStep3AdditionalDocument = async (companyId: string, documentIndex: number) => {
+    try {
+      console.log(`🗑️ handleRemoveStep3AdditionalDocument called with documentIndex: ${documentIndex}`);
+
       // First check if it's a pending document
       const pendingDocuments = pendingStep3Documents.step3AdditionalDoc || []
       if (pendingDocuments.length > 0) {
@@ -1292,18 +1451,181 @@ export default function CompanyDetailsPage({
           ...prev,
           step3AdditionalDoc: updatedAdditionalDocuments
         }));
+
+        toast({
+          title: "Success",
+          description: "Document removed successfully!",
+        });
       } else {
         console.error('❌ Failed to remove step3 document from database:', updateResponse.status, updateResponse.statusText);
+        toast({
+          title: "Error",
+          description: "Failed to remove document from database. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error("Error removing step 3 additional document:", error)
+      console.error("Error removing step 3 additional document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Function to remove step 4 additional document
+  const handleRemoveStep4AdditionalDocument = async (companyId: string, documentIndex: number) => {
+    try {
+      console.log(`🗑️ handleRemoveStep4AdditionalDocument called with documentIndex: ${documentIndex}`);
+
+      // Get current registration from database
+      const response = await fetch(`/api/registrations/${companyId}`);
+      if (!response.ok) {
+        console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
+        toast({
+          title: "Error",
+          description: "Failed to fetch registration data. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const currentRegistration = await response.json();
+      const currentStep4Documents = currentRegistration.step4FinalAdditionalDoc || [];
+
+      if (documentIndex >= currentStep4Documents.length) {
+        console.error('❌ Document index out of range:', documentIndex);
+        toast({
+          title: "Error",
+          description: "Document not found. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get the document to be deleted
+      const documentToDelete = currentStep4Documents[documentIndex];
+      console.log('📄 Document to delete:', documentToDelete);
+
+      // Delete file from file storage
+      console.log('🗑️ Deleting file from file storage...');
+      try {
+        const { fileUploadClient } = await import('@/lib/file-upload-client');
+
+        if (documentToDelete.filePath) {
+          const deleteResult = await fileUploadClient.deleteFile(documentToDelete.filePath);
+          if (deleteResult.success) {
+            console.log('✅ File deleted from file storage successfully');
+          } else {
+            console.warn('⚠️ Failed to delete file from file storage:', deleteResult.error);
+            // Continue with database deletion even if file deletion fails
+          }
+        } else {
+          console.warn('⚠️ No filePath found for document, skipping file deletion');
+        }
+      } catch (fileError) {
+        console.warn('⚠️ Error deleting file from storage:', fileError);
+        // Continue with database deletion even if file deletion fails
+      }
+
+      // Remove document from array
+      const updatedStep4Documents = currentStep4Documents.filter((_: any, index: number) => index !== documentIndex);
+      console.log('📄 Updated step4FinalAdditionalDoc array:', updatedStep4Documents);
+
+      // Update MySQL database
+      console.log('📝 Updating database...');
+      const updateResponse = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...currentRegistration,
+          step4FinalAdditionalDoc: updatedStep4Documents,
+          updatedAt: new Date().toISOString(),
+        })
+      });
+
+      console.log('📥 Update response status:', updateResponse.status);
+
+      if (!updateResponse.ok) {
+        console.error('❌ Failed to remove step 4 document from database:', updateResponse.status, updateResponse.statusText);
+        const errorText = await updateResponse.text();
+        console.error('Error details:', errorText);
+        toast({
+          title: "Error",
+          description: "Failed to remove document from database. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const updateResult = await updateResponse.json();
+      console.log('✅ Update result:', updateResult);
+      console.log('✅ Step 4 additional document removed from MySQL database successfully');
+
+      // Update local state
+      setSelectedCompany(prev => {
+        console.log('🔄 Updating local state after step 4 document removal');
+        const updated = {
+          ...prev,
+          step4FinalAdditionalDoc: updatedStep4Documents
+        };
+        console.log('🔄 Updated selectedCompany:', updated);
+        return updated;
+      });
+
+      // Show success message
+      toast({
+        title: "Success",
+        description: "Document removed successfully!",
+      });
+
+      console.log('✅ handleRemoveStep4AdditionalDocument completed successfully');
+
+    } catch (error) {
+      console.error("Error removing step 4 additional document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove document. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
   // Function to handle add document dialog submit
-  const handleAddDocumentSubmit = () => {
+  const handleAddDocumentSubmit = async () => {
     if (additionalDocumentTitle.trim() && additionalDocumentFile) {
-      handleAdditionalDocumentUpload(selectedCompany._id, additionalDocumentTitle.trim(), additionalDocumentFile)
+      console.log('🔍 handleAddDocumentSubmit - Debug info:');
+      console.log('  - selectedCompany._id:', selectedCompany._id);
+      console.log('  - selectedCompany.currentStep:', selectedCompany.currentStep);
+      console.log('  - selectedCompany.status:', selectedCompany.status);
+      console.log('  - additionalDocumentTitle:', additionalDocumentTitle.trim());
+      console.log('  - additionalDocumentFile.name:', additionalDocumentFile.name);
+
+      // Check if we're in step 4 (incorporation step)
+      const isStep4 = selectedCompany.currentStep === 'incorporate' || selectedCompany.status === 'incorporation-processing';
+      console.log('  - Is Step 4?', isStep4);
+
+      if (isStep4) {
+        console.log('📁 handleAddDocumentSubmit - Calling handleStep4AdditionalDocumentUpload for step 4');
+        // For step 4, immediately save to file storage and database
+        const success = await handleStep4AdditionalDocumentUpload(selectedCompany._id, additionalDocumentTitle.trim(), additionalDocumentFile)
+        if (!success) {
+          console.error('❌ handleStep4AdditionalDocumentUpload failed');
+          toast({
+            title: "Error",
+            description: "Failed to save document to database. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        console.log('📁 handleAddDocumentSubmit - Calling handleAdditionalDocumentUpload for step 3');
+        // For step 3, use the existing temporary storage approach
+        handleAdditionalDocumentUpload(selectedCompany._id, additionalDocumentTitle.trim(), additionalDocumentFile)
+      }
       setAdditionalDocumentTitle('')
       setAdditionalDocumentFile(null)
       setShowAddDocumentDialog(false)
@@ -3217,7 +3539,7 @@ export default function CompanyDetailsPage({
                   {/* Additional Documents */}
                   <div>
                     <h4 className="font-medium text-sm mb-3">Additional Documents</h4>
-                    {(pendingStep4Documents.additionalDocuments && pendingStep4Documents.additionalDocuments.length > 0) || (selectedCompany.additionalDocuments && selectedCompany.additionalDocuments.length > 0) ? (
+                    {(pendingStep4Documents.additionalDocuments && pendingStep4Documents.additionalDocuments.length > 0) || (selectedCompany.step4FinalAdditionalDoc && selectedCompany.step4FinalAdditionalDoc.length > 0) ? (
                       <div className="space-y-3">
                         {/* Show pending additional documents first */}
                         {pendingStep4Documents.additionalDocuments && pendingStep4Documents.additionalDocuments.map((doc: any, index: number) => (
@@ -3236,8 +3558,8 @@ export default function CompanyDetailsPage({
                             </div>
                           </div>
                         ))}
-                        {/* Show existing additional documents */}
-                        {selectedCompany.additionalDocuments && selectedCompany.additionalDocuments.map((doc: any, index: number) => (
+                        {/* Show existing step 4 additional documents */}
+                        {selectedCompany.step4FinalAdditionalDoc && selectedCompany.step4FinalAdditionalDoc.map((doc: any, index: number) => (
                           <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-3">
                               <FileText className="h-4 w-4 text-primary" />
