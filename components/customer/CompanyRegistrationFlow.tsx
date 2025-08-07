@@ -430,9 +430,9 @@ export default function CompanyRegistrationFlow({
       }
     }
 
-    // NO AUTOMATIC API CALLS - Only save to database for the very first step (contact-details to company-details)
+    // Save to database for step progression
     if (companyData.currentStep === "contact-details" && nextStep === "company-details") {
-      console.log("💾 CompanyRegistrationFlow - Saving new registration (first step only)");
+      console.log("💾 CompanyRegistrationFlow - Saving new registration (first step)");
       // Use the registration ID from stepData if available
       const newRegistration = {
         ...updatedData,
@@ -441,7 +441,7 @@ export default function CompanyRegistrationFlow({
         status: "payment-processing",
       }
 
-      // Save the registration data only for the first step
+      // Save the registration data for the first step
       await onSaveRegistration(newRegistration)
 
       // Dispatch registration update event for admin dashboard
@@ -454,10 +454,59 @@ export default function CompanyRegistrationFlow({
           },
         })
       )
+    } else if (companyData.currentStep === "documentation" && nextStep === "incorporate") {
+      console.log("💾 CompanyRegistrationFlow - Saving step progression to database (step 3 to step 4)");
+
+      // Update the registration in the database to reflect step progression
+      try {
+        // Get current company data to avoid null values
+        const currentData = await loadLatestCompanyData();
+
+        // Include existing company data to avoid null values
+        const updateData = {
+          ...currentData, // Include all existing data
+          currentStep: nextStep,
+          status: status,
+          documentsAcknowledged: true,
+          ...stepData
+        };
+
+        console.log('📤 Sending update data to API:', {
+          currentStep: updateData.currentStep,
+          status: updateData.status,
+          documentsAcknowledged: updateData.documentsAcknowledged
+        });
+
+        const response = await fetch(`/api/registrations/${companyId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (response.ok) {
+          console.log("✅ Step progression saved to database successfully");
+
+          // Dispatch registration update event
+          window.dispatchEvent(
+            new CustomEvent("registration-updated", {
+              detail: {
+                type: "step-progression",
+                registrationId: companyId,
+                currentStep: nextStep,
+                status: status
+              },
+            })
+          )
+        } else {
+          console.error("❌ Failed to save step progression to database:", response.status);
+        }
+      } catch (error) {
+        console.error("❌ Error saving step progression to database:", error);
+      }
     } else {
-      console.log("🚫 CompanyRegistrationFlow - NO AUTOMATIC API CALLS - Skipping database save");
-      console.log("🚫 CompanyRegistrationFlow - User must manually save data using 'Save Form' button");
-      // Don't save for any other cases - user must manually save
+      console.log("🚫 CompanyRegistrationFlow - Skipping database save for other step transitions");
     }
 
     setLoading(false)

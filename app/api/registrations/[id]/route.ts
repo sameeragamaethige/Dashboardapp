@@ -128,6 +128,9 @@ export async function PUT(
 
         console.log('📝 PUT /api/registrations/[id] - Updating registration:', {
             id,
+            currentStep: body.currentStep,
+            status: body.status,
+            documentsAcknowledged: body.documentsAcknowledged,
             balancePaymentReceipt: body.balancePaymentReceipt,
             customerDocuments: body.customerDocuments
         });
@@ -144,7 +147,7 @@ export async function PUT(
         company_name = ?, contact_person_name = ?, contact_person_email = ?,
         contact_person_phone = ?, selected_package = ?, payment_method = ?,
         current_step = ?, status = ?, payment_approved = ?, details_approved = ?,
-        documents_approved = ?, documents_published = ?, payment_receipt = ?,
+        documents_approved = ?, documents_published = ?, documents_acknowledged = ?, payment_receipt = ?,
         balance_payment_receipt = ?, form1 = ?, letter_of_engagement = ?,
         aoa = ?, form18 = ?, address_proof = ?, 
         customer_form1 = ?, customer_letter_of_engagement = ?, customer_aoa = ?, 
@@ -171,6 +174,7 @@ export async function PUT(
                 body.detailsApproved || false,
                 body.documentsApproved || false,
                 body.documentsPublished || false,
+                body.documentsAcknowledged || false,
                 body.paymentReceipt ? JSON.stringify(body.paymentReceipt) : null,
                 body.balancePaymentReceipt ? (() => {
                     try {
@@ -225,9 +229,17 @@ export async function PUT(
         console.error('❌ Error updating registration:', error);
         console.error('❌ Error details:', {
             message: error.message,
-            stack: error.stack
+            stack: error.stack,
+            code: error.code,
+            errno: error.errno,
+            sqlState: error.sqlState,
+            sqlMessage: error.sqlMessage
         });
-        return NextResponse.json({ error: 'Failed to update registration' }, { status: 500 });
+        return NextResponse.json({
+            error: 'Failed to update registration',
+            details: error.message,
+            code: error.code
+        }, { status: 500 });
     }
 }
 
