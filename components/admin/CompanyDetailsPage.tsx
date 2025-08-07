@@ -905,22 +905,54 @@ export default function CompanyDetailsPage({
       })
 
       // Save to MySQL database immediately
+      const updateData = {
+        ...selectedCompany,
+        updated_at: new Date().toISOString()
+      };
+
+      // Handle Form 18 as an array, other documents as single objects
+      if (documentType === "form18" && typeof index === "number") {
+        const currentForm18 = selectedCompany.form18 || [];
+        const updatedForm18 = [...currentForm18];
+        updatedForm18[index] = document;
+        updateData.form18 = updatedForm18;
+        console.log('📝 Saving Form 18 to database:', {
+          index,
+          currentForm18Length: currentForm18.length,
+          updatedForm18Length: updatedForm18.length,
+          document: document
+        });
+      } else {
+        updateData[documentType] = document;
+        console.log('📝 Saving document to database:', {
+          documentType,
+          document: document
+        });
+      }
+
+      console.log('📤 Sending API request to save document...');
       const response = await fetch(`/api/registrations/${companyId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...selectedCompany,
-          [documentType]: document,
-          updatedAt: new Date().toISOString()
-        })
+        body: JSON.stringify(updateData)
+      });
+
+      console.log('📥 API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save to database: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('❌ API error response:', errorText);
+        throw new Error(`Failed to save to database: ${response.statusText} - ${errorText}`);
       }
 
+      const responseData = await response.json();
+      console.log('📥 API response data:', responseData);
       console.log(`✅ Document saved to database successfully: ${file.name}`);
 
     } catch (error) {
