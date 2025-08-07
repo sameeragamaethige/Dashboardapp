@@ -241,11 +241,9 @@ export default function CompanyDetailsPage({
   const [pendingStep4Documents, setPendingStep4Documents] = useState<any>({})
   // New: Store pending step 3 additional documents
   const [pendingStep3Documents, setPendingStep3Documents] = useState<any>({})
-  const [completeRegistrationClicked, setCompleteRegistrationClicked] = useState(false)
   const [documentsSubmitted, setDocumentsSubmitted] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showPublishSuccess, setShowPublishSuccess] = useState(false)
-  const [showCompleteSuccess, setShowCompleteSuccess] = useState(false)
   const [appTitle, setAppTitle] = useState('')
   const [showAddDocumentDialog, setShowAddDocumentDialog] = useState(false)
   const [additionalDocumentTitle, setAdditionalDocumentTitle] = useState('')
@@ -433,13 +431,7 @@ export default function CompanyDetailsPage({
     }
   }, [companyId])
 
-  // Persist completeRegistrationClicked in localStorage per company
-  useEffect(() => {
-    if (!companyId) return;
-    // On mount, check if registration was completed for this company
-    const completed = localStorage.getItem(`completeRegistrationClicked_${companyId}`)
-    setCompleteRegistrationClicked(completed === "true")
-  }, [companyId])
+
 
   // Function to determine the active step based on company status
   const determineActiveStep = (company: any) => {
@@ -837,33 +829,8 @@ export default function CompanyDetailsPage({
   // Function to handle document upload
   const handleDocumentUpload = async (companyId: string, documentType: string, file: File, index?: number) => {
     try {
-      // For incorporation certificate, store temporarily without saving to file storage
-      if (documentType === "incorporationCertificate") {
-        console.log(`📁 Admin - Storing incorporation certificate temporarily: ${file.name}`);
-
-        const document = {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          file: file, // Store the actual file object temporarily
-          uploadedAt: new Date().toISOString(),
-          // These will be set when actually saved to file storage
-          url: null,
-          filePath: null,
-          id: null,
-        }
-
-        setPendingStep4Documents((prev: any) => ({
-          ...prev,
-          incorporationCertificate: document
-        }))
-
-        console.log(`✅ Incorporation certificate stored temporarily: ${file.name}`)
-        return
-      }
-
-      // For step 3 documents, immediately upload to file storage and database
-      console.log(`📁 Admin - Immediately uploading step 3 document: ${documentType}, file: ${file.name}`);
+      // For incorporation certificate and step 3 documents, immediately upload to file storage and database
+      console.log(`📁 Admin - Immediately uploading document: ${documentType}, file: ${file.name}`);
 
       // Import the file upload client
       const { fileUploadClient } = await import('@/lib/file-upload-client')
@@ -904,11 +871,21 @@ export default function CompanyDetailsPage({
         return updated
       })
 
+      // Clear any pending documents for this type
+      if (documentType === "incorporationCertificate") {
+        setPendingStep4Documents((prev: any) => ({
+          ...prev,
+          incorporationCertificate: null
+        }))
+      }
+
       // Save to MySQL database immediately
       const updateData = {
         ...selectedCompany,
         updated_at: new Date().toISOString()
       };
+
+
 
       // Handle Form 18 as an array, other documents as single objects
       if (documentType === "form18" && typeof index === "number") {
@@ -955,8 +932,19 @@ export default function CompanyDetailsPage({
       console.log('📥 API response data:', responseData);
       console.log(`✅ Document saved to database successfully: ${file.name}`);
 
+      // Show success message
+      toast({
+        title: "Success",
+        description: `${documentType === "incorporationCertificate" ? "Incorporation certificate" : "Document"} uploaded and saved successfully!`,
+      });
+
     } catch (error) {
       console.error("Error uploading document:", error)
+      toast({
+        title: "Error",
+        description: `Failed to upload ${documentType === "incorporationCertificate" ? "incorporation certificate" : "document"}. Please try again.`,
+        variant: "destructive",
+      });
       throw error; // Re-throw to be handled by the calling component
     }
   }
@@ -1834,101 +1822,6 @@ export default function CompanyDetailsPage({
     }
   }
 
-  const handleSubmitDocuments = async () => {
-    try {
-      console.log('📄 Admin - Submitting documents for company:', selectedCompany._id);
-
-      // Import the file upload client
-      const { fileUploadClient } = await import('@/lib/file-upload-client')
-
-      // Get the most current registration from database
-      const registration = await LocalStorageService.getRegistrationById(selectedCompany._id);
-      if (!registration) {
-        console.error('Registration not found in database');
-        return;
-      }
-
-      let updatedRegistration = { ...registration };
-
-      // Process pending incorporation certificate if it exists
-      if (pendingStep4Documents.incorporationCertificate && pendingStep4Documents.incorporationCertificate.file) {
-        const uploadResult = await fileUploadClient.uploadFile(pendingStep4Documents.incorporationCertificate.file, selectedCompany._id);
-        if (uploadResult.success && uploadResult.file) {
-          updatedRegistration.incorporationCertificate = {
-            ...pendingStep4Documents.incorporationCertificate,
-            url: uploadResult.file.url,
-            filePath: uploadResult.file.filePath,
-            id: uploadResult.file.id,
-            file: undefined // Remove the file object
-          };
-        }
-      }
-
-      // Process pending additional documents if they exist
-      if (pendingStep4Documents.additionalDocuments && Array.isArray(pendingStep4Documents.additionalDocuments)) {
-        const processedAdditionalDocuments = [];
-        for (const doc of pendingStep4Documents.additionalDocuments) {
-          if (doc && doc.file) {
-            const uploadResult = await fileUploadClient.uploadFile(doc.file, selectedCompany._id);
-            if (uploadResult.success && uploadResult.file) {
-              processedAdditionalDocuments.push({
-                ...doc,
-                url: uploadResult.file.url,
-                filePath: uploadResult.file.filePath,
-                id: uploadResult.file.id,
-                file: undefined // Remove the file object
-              });
-            }
-          } else if (doc) {
-            processedAdditionalDocuments.push(doc);
-          }
-        }
-        updatedRegistration.additionalDocuments = processedAdditionalDocuments;
-      }
-
-      // Update registration timestamp
-      updatedRegistration.updatedAt = new Date().toISOString();
-
-      // Save to database
-      await LocalStorageService.saveRegistration(updatedRegistration);
-
-      // Update localStorage as fallback
-      const savedRegistrations = localStorage.getItem("registrations")
-      let currentRegistrations = savedRegistrations ? JSON.parse(savedRegistrations) : []
-
-      currentRegistrations = currentRegistrations.map((reg: any) => {
-        if (reg._id === selectedCompany._id) {
-          return updatedRegistration;
-        }
-        return reg
-      })
-
-      localStorage.setItem("registrations", JSON.stringify(currentRegistrations))
-
-      // Update the selected company in state
-      setSelectedCompany(updatedRegistration);
-
-      console.log('✅ Documents submitted successfully:', updatedRegistration);
-
-      // Clear pending step 4 documents after successful upload
-      setPendingStep4Documents({})
-
-      // Set documents submitted state
-      setDocumentsSubmitted(true)
-
-      console.log('✅ Documents submitted successfully:', updatedRegistration);
-      console.log('✅ Complete Registration button is now enabled');
-
-    } catch (error) {
-      console.error('Error submitting documents:', error);
-      toast({
-        title: "Error",
-        description: "Error submitting documents. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }
-
   const handleCompleteRegistration = async () => {
     try {
       console.log('🎉 Admin - Completing registration for company:', selectedCompany._id);
@@ -2003,33 +1896,16 @@ export default function CompanyDetailsPage({
       window.dispatchEvent(globalEvent);
       console.log('📡 Global event also dispatched for testing');
 
-      // Hide the button after first click
-      setCompleteRegistrationClicked(true)
-      localStorage.setItem(`completeRegistrationClicked_${selectedCompany._id}`, "true")
-
       // Show success message
-      setShowCompleteSuccess(true)
-      setTimeout(() => {
-        setShowCompleteSuccess(false)
-      }, 5000) // Hide after 5 seconds
-
-      // Test: Dispatch another event after a delay to ensure it reaches the customer
-      setTimeout(() => {
-        console.log('📡 Dispatching delayed test event...')
-        const testEvent = new CustomEvent("registration-updated", {
-          detail: {
-            type: "registration-completed",
-            companyId: selectedCompany._id,
-          },
-        });
-        window.dispatchEvent(testEvent);
-        console.log('📡 Delayed test event dispatched')
-      }, 1000)
+      toast({
+        title: "Success",
+        description: "Registration completed successfully! Customer can now access step 4.",
+      });
 
       // Navigate back to admin dashboard after showing the message
       setTimeout(() => {
         navigateTo("adminDashboard")
-      }, 3000) // Wait 3 seconds before redirecting
+      }, 2000) // Wait 2 seconds before redirecting
     } catch (error) {
       console.error('Error completing registration:', error);
       toast({
@@ -3469,29 +3345,12 @@ export default function CompanyDetailsPage({
                 </CardContent>
                 {canManage && (
                   <CardFooter className="flex justify-end gap-3">
-                    {showCompleteSuccess && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-md text-green-700 text-sm animate-in slide-in-from-left duration-300">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Registration completed successfully! Customer can now access step 4.</span>
-                      </div>
-                    )}
                     <Button
-                      onClick={handleSubmitDocuments}
-                      variant="outline"
-                      className="gap-2"
+                      onClick={handleCompleteRegistration}
+                      className="gap-2 bg-green-600 hover:bg-green-700"
                     >
-                      <FileCheck className="h-4 w-4" /> Submit Documents
+                      <CheckCircle className="h-4 w-4" /> Complete Registration
                     </Button>
-                    {!completeRegistrationClicked && (
-                      <Button
-                        onClick={handleCompleteRegistration}
-                        disabled={!documentsSubmitted}
-                        className="gap-2"
-                        title={!documentsSubmitted ? "Submit documents first to enable this button" : "Click to complete registration"}
-                      >
-                        <CheckCircle className="h-4 w-4" /> Complete Registration
-                      </Button>
-                    )}
                   </CardFooter>
                 )}
               </Card>
