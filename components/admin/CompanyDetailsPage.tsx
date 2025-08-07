@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import {
   CheckCircle,
   XCircle,
@@ -54,15 +55,21 @@ type CompanyDetailsPageProps = {
 
 // DocumentUploadCard Component
 const DocumentUploadCard = ({ title, description, document, onUpload, onDelete, disabled, showReplace }: any) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const fileInputId = `${title.replace(/\s+/g, "-").toLowerCase()}-replace-upload`;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0]
     if (file) {
-      setSelectedFile(file)
-      onUpload(file)
+      setIsUploading(true)
+      try {
+        await onUpload(file)
+      } catch (error) {
+        console.error('Upload failed:', error)
+      } finally {
+        setIsUploading(false)
+      }
     }
   }
 
@@ -186,16 +193,24 @@ const DocumentUploadCard = ({ title, description, document, onUpload, onDelete, 
               onChange={handleFileChange}
               disabled={disabled}
             />
-            <label htmlFor={`${title}-upload`} className={`w-full ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
-              <Button variant="outline" asChild disabled={disabled}>
+            <label htmlFor={`${title}-upload`} className={`w-full ${disabled || isUploading ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <Button variant="outline" asChild disabled={disabled || isUploading}>
                 <div className="flex items-center justify-center w-full">
-                  <Upload className="h-4 w-4 mr-2" /> Upload {title}
+                  {isUploading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" /> Upload {title}
+                    </>
+                  )}
                 </div>
               </Button>
             </label>
-            {selectedFile && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                Selected File: {selectedFile.name} ({Math.ceil(selectedFile.size / 1024)} KB)
+            {isUploading && (
+              <p className="mt-2 text-sm text-blue-600">
+                Uploading to database and file storage...
               </p>
             )}
           </div>
@@ -214,6 +229,7 @@ export default function CompanyDetailsPage({
   onApproveDocuments,
   user,
 }: CompanyDetailsPageProps) {
+  const { toast } = useToast()
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [viewStep, setViewStep] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -846,53 +862,70 @@ export default function CompanyDetailsPage({
         return
       }
 
-      // For step 3 documents, store temporarily first
+      // For step 3 documents, immediately upload to file storage and database
+      console.log(`📁 Admin - Immediately uploading step 3 document: ${documentType}, file: ${file.name}`);
+
+      // Import the file upload client
+      const { fileUploadClient } = await import('@/lib/file-upload-client')
+
+      // Upload file to file storage immediately
+      const uploadResult = await fileUploadClient.uploadFile(file, companyId);
+
+      if (!uploadResult.success || !uploadResult.file) {
+        throw new Error(`Failed to upload file to storage: ${uploadResult.error}`);
+      }
+
+      console.log(`✅ File uploaded to storage successfully: ${file.name}`);
+
+      // Create document object with file storage data
       const document = {
         name: file.name,
         type: file.type,
         size: file.size,
-        file: file, // Store the actual file object temporarily
-        uploadedAt: new Date().toISOString(),
-        // These will be set when actually saved to file storage
-        url: null,
-        filePath: null,
-        id: null,
+        url: uploadResult.file.url,
+        filePath: uploadResult.file.filePath,
+        id: uploadResult.file.id,
+        uploadedAt: uploadResult.file.uploadedAt,
       }
 
-      setPendingDocuments((prev: any) => {
+      // Update local state immediately
+      setSelectedCompany((prev: any) => {
         const updated = { ...prev }
         if (documentType === "form18" && typeof index === "number") {
           updated.form18 = Array.isArray(prev.form18)
             ? [...prev.form18]
-            : Array.isArray(selectedCompany.form18)
-              ? [...selectedCompany.form18]
-              : Array.isArray(selectedCompany.directors)
-                ? selectedCompany.directors.map(() => null)
-                : []
+            : Array.isArray(prev.directors)
+              ? prev.directors.map(() => null)
+              : []
           updated.form18[index] = document
         } else {
           updated[documentType] = document
         }
         return updated
       })
-      setDocumentsChanged(true)
 
-      console.log(`✅ Document stored temporarily: ${file.name}`)
+      // Save to MySQL database immediately
+      const response = await fetch(`/api/registrations/${companyId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...selectedCompany,
+          [documentType]: document,
+          updatedAt: new Date().toISOString()
+        })
+      });
 
-      // Immediately save ALL step3 documents to MySQL and file storage
-      console.log(`📝 Admin - Immediately saving step3 documents to database...`);
-      const saveResult = await saveAllStep3DocumentsToDatabase(companyId);
-
-      if (saveResult) {
-        console.log(`✅ Step3 documents saved to database successfully: ${file.name}`);
-      } else {
-        console.error(`❌ Failed to save step3 documents to database: ${file.name}`);
-        alert(`Failed to save document to database. Please try again.`);
+      if (!response.ok) {
+        throw new Error(`Failed to save to database: ${response.statusText}`);
       }
+
+      console.log(`✅ Document saved to database successfully: ${file.name}`);
+
     } catch (error) {
       console.error("Error uploading document:", error)
-      // You might want to show a toast notification here
-      alert(`Error uploading file: ${error.message}`)
+      throw error; // Re-throw to be handled by the calling component
     }
   }
 
@@ -1281,7 +1314,11 @@ export default function CompanyDetailsPage({
       const response = await fetch(`/api/registrations/${selectedCompany._id}`);
       if (!response.ok) {
         console.error('❌ Failed to fetch registration from database:', response.status, response.statusText);
-        alert('Failed to fetch registration data. Please try again.');
+        toast({
+          title: "Error",
+          description: "Failed to fetch registration data. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -1293,7 +1330,11 @@ export default function CompanyDetailsPage({
       const uploadResult = await fileUploadClient.uploadFile(newDocument.file, selectedCompany._id);
       if (!uploadResult.success || !uploadResult.file) {
         console.error('❌ Failed to upload file to file storage');
-        alert('Failed to upload file. Please try again.');
+        toast({
+          title: "Error",
+          description: "Failed to upload file. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -1332,7 +1373,11 @@ export default function CompanyDetailsPage({
 
       if (!updateResponse.ok) {
         console.error('❌ Failed to save document to MySQL database:', updateResponse.status, updateResponse.statusText);
-        alert('Failed to save document to database. Please try again.');
+        toast({
+          title: "Error",
+          description: "Failed to save document to database. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -1353,11 +1398,18 @@ export default function CompanyDetailsPage({
 
       // Show success message
       console.log('✅ Step3 additional document added and saved to database successfully');
-      alert('Document uploaded and saved successfully!');
+      toast({
+        title: "Success",
+        description: "Document uploaded and saved successfully!",
+      });
 
     } catch (error) {
       console.error("Error adding new document:", error)
-      alert('Error adding document. Please try again.');
+      toast({
+        title: "Error",
+        description: "Error adding document. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -1644,11 +1696,19 @@ export default function CompanyDetailsPage({
         }, 3000) // Hide after 3 seconds
       } else {
         console.error('❌ Failed to publish documents to database:', updateResponse.status, updateResponse.statusText);
-        alert('Failed to publish documents. Please try again.');
+        toast({
+          title: "Error",
+          description: "Failed to publish documents. Please try again.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error publishing documents:", error)
-      alert('Error publishing documents. Please try again.');
+      toast({
+        title: "Error",
+        description: "Error publishing documents. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -1829,7 +1889,11 @@ export default function CompanyDetailsPage({
 
     } catch (error) {
       console.error('Error submitting documents:', error);
-      alert('Error submitting documents. Please try again.');
+      toast({
+        title: "Error",
+        description: "Error submitting documents. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -1936,7 +2000,11 @@ export default function CompanyDetailsPage({
       }, 3000) // Wait 3 seconds before redirecting
     } catch (error) {
       console.error('Error completing registration:', error);
-      alert('Error completing registration. Please try again.');
+      toast({
+        title: "Error",
+        description: "Error completing registration. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 

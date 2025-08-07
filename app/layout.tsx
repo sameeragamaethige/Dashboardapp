@@ -4,6 +4,7 @@ import { AppTitle } from "@/components/ui/app-title"
 import { FaviconManager } from "@/components/ui/favicon-manager"
 import { ColorTheme } from "@/components/ui/color-theme"
 import { ColorInitializer } from "@/components/ui/color-initializer"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -70,6 +71,7 @@ export default function RootLayout({
         <FaviconManager />
         <ColorTheme />
         {children}
+        <Toaster />
         <footer className="w-full py-3 bg-white text-center text-xs text-gray-700 shadow-sm border-t border-gray-300">
           © 2025 All RIGHTS RESERVED | POWERED BY{" "}
           <a

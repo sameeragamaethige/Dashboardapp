@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import BankDetailsSettings from "./BankDetailsSettings"
 import UserManagement from "./UserManagement"
+import DocumentsManagement from "./DocumentsManagement"
 import { isAdmin, changeUserPassword, updateUser, getUserById } from "@/lib/auth-utils"
 import CustomizationSettings from "./CustomizationSettings"
 import ChangePasswordForm from "../user/ChangePasswordForm"
@@ -466,6 +467,15 @@ export default function AdminDashboard({
                   >
                     <FileText className="h-4 w-4 mr-2" /> Billing
                   </Button>
+
+                  <Button
+                    variant={activeTab === "documentTemplates" ? "secondary" : "ghost"}
+                    className={`w-full justify-start transition-colors ${activeTab === "documentTemplates" ? '' : 'hover:bg-white hover:bg-opacity-60'}`}
+                    style={activeTab === "documentTemplates" ? undefined : { backgroundColor: undefined }}
+                    onClick={() => setActiveTab("documentTemplates")}
+                  >
+                    <FileText className="h-4 w-4 mr-2" /> Document Templates
+                  </Button>
                 </>
               )}
             </nav>
@@ -791,6 +801,26 @@ export default function AdminDashboard({
                   <p className="text-muted-foreground">Billing features coming soon.</p>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Document Templates Tab */}
+            {activeTab === "documentTemplates" && userIsAdmin && (
+              <DocumentsManagement
+                documents={{
+                  form1: null,
+                  letterOfEngagement: null,
+                  aoa: null,
+                  form18: []
+                }}
+                directors={[
+                  { name: "Director 1", fullName: "Director 1" },
+                  { name: "Director 2", fullName: "Director 2" },
+                  { name: "Director 3", fullName: "Director 3" }
+                ]}
+                onUpdateDocuments={(documents) => {
+                  console.log('Document templates updated:', documents)
+                }}
+              />
             )}
           </div>
         </div>
