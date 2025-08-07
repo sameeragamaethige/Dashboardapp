@@ -1,12 +1,27 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { FileText, Download, CheckCircle2, Trash2 } from "lucide-react"
+import { FileText, Download, CheckCircle2, Trash2, Upload, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+type DocumentTemplate = {
+  id: number
+  document_type: string
+  name: string
+  type: string
+  size: number
+  url: string
+  file_path: string
+  file_id: string
+  director_index?: number
+  uploaded_at: string
+  created_at: string
+  updated_at: string
+}
 
 type DocumentsManagementProps = {
   documents: {
@@ -30,41 +45,171 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
         : directors.map((_, i) => documents.form18?.[i] || null)
       : directors.map(() => null),
   })
+  const [documentTemplates, setDocumentTemplates] = useState<DocumentTemplate[]>([])
   const [successMessage, setSuccessMessage] = useState("")
+  const [errorMessage, setErrorMessage] = useState("")
+  const [uploading, setUploading] = useState<string | null>(null)
 
-  const handleFileUpload = (documentType: string, file: File, index?: number) => {
-    setUploadedFiles((prev) => {
-      if (documentType === "form18" && typeof index === "number") {
-        const arr = Array.isArray(prev.form18) ? [...prev.form18] : directors.map(() => null)
-        arr[index] = file
-        return { ...prev, form18: arr }
-      }
-      return { ...prev, [documentType]: file }
-    })
-  }
+  // Load existing document templates on component mount
+  useEffect(() => {
+    loadDocumentTemplates()
+  }, [])
 
-  const handleRemoveDocument = (documentType: string, index?: number) => {
-    setUploadedFiles((prev) => {
-      if (documentType === "form18" && typeof index === "number") {
-        const arr = Array.isArray(prev.form18) ? [...prev.form18] : directors.map(() => null)
-        arr[index] = null
-        return { ...prev, form18: arr }
-      }
-      return { ...prev, [documentType]: null }
-    })
-  }
-
-  const handleSaveDocuments = async () => {
+  const loadDocumentTemplates = async () => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      onUpdateDocuments(uploadedFiles)
-      setSuccessMessage("Document templates updated successfully")
-      setTimeout(() => {
-        setSuccessMessage("")
-      }, 3000)
+      const response = await fetch('/api/document-templates')
+      if (response.ok) {
+        const templates = await response.json()
+        setDocumentTemplates(templates)
+        console.log('📋 Loaded document templates:', templates)
+      } else {
+        console.error('Failed to load document templates')
+      }
     } catch (error) {
-      console.error("Error saving documents:", error)
+      console.error('Error loading document templates:', error)
     }
+  }
+
+  const handleFileUpload = async (documentType: string, file: File, index?: number) => {
+    try {
+      setUploading(`${documentType}${index !== undefined ? `-${index}` : ''}`)
+      setErrorMessage("")
+
+      console.log(`📁 Admin - Uploading document template: ${documentType}, file: ${file.name}`)
+
+      // Create FormData for the API request
+      const formData = new FormData()
+      formData.append('documentType', documentType)
+      formData.append('file', file)
+      if (index !== undefined) {
+        formData.append('directorIndex', index.toString())
+      }
+
+      // Upload immediately to file storage and database
+      const response = await fetch('/api/document-templates', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Document template uploaded successfully:', result)
+
+        // Update local state
+        setUploadedFiles((prev) => {
+          if (documentType === "form18" && typeof index === "number") {
+            const arr = Array.isArray(prev.form18) ? [...prev.form18] : directors.map(() => null)
+            arr[index] = file
+            return { ...prev, form18: arr }
+          }
+          return { ...prev, [documentType]: file }
+        })
+
+        // Reload document templates
+        await loadDocumentTemplates()
+
+        setSuccessMessage(`${documentType.toUpperCase()} template uploaded successfully`)
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
+
+        // Call the parent callback
+        onUpdateDocuments({
+          ...uploadedFiles,
+          [documentType]: file
+        })
+
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload document template')
+      }
+
+    } catch (error) {
+      console.error('Error uploading document template:', error)
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to upload document template')
+      setTimeout(() => {
+        setErrorMessage("")
+      }, 5000)
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleRemoveDocument = async (documentType: string, index?: number) => {
+    try {
+      // Find the template to delete
+      const templateToDelete = documentTemplates.find(template => {
+        if (documentType === "form18" && index !== undefined) {
+          return template.document_type === documentType && template.director_index === index
+        }
+        return template.document_type === documentType && template.director_index === null
+      })
+
+      if (templateToDelete) {
+        // Delete from database
+        const response = await fetch(`/api/document-templates?id=${templateToDelete.id}`, {
+          method: 'DELETE'
+        })
+
+        if (response.ok) {
+          console.log('✅ Document template deleted successfully')
+
+          // Update local state
+          setUploadedFiles((prev) => {
+            if (documentType === "form18" && typeof index === "number") {
+              const arr = Array.isArray(prev.form18) ? [...prev.form18] : directors.map(() => null)
+              arr[index] = null
+              return { ...prev, form18: arr }
+            }
+            return { ...prev, [documentType]: null }
+          })
+
+          // Reload document templates
+          await loadDocumentTemplates()
+
+          setSuccessMessage(`${documentType.toUpperCase()} template removed successfully`)
+          setTimeout(() => {
+            setSuccessMessage("")
+          }, 3000)
+        } else {
+          throw new Error('Failed to delete document template')
+        }
+      } else {
+        // Just update local state if no template found
+        setUploadedFiles((prev) => {
+          if (documentType === "form18" && typeof index === "number") {
+            const arr = Array.isArray(prev.form18) ? [...prev.prev.form18] : directors.map(() => null)
+            arr[index] = null
+            return { ...prev, form18: arr }
+          }
+          return { ...prev, [documentType]: null }
+        })
+      }
+    } catch (error) {
+      console.error('Error removing document template:', error)
+      setErrorMessage('Failed to remove document template')
+      setTimeout(() => {
+        setErrorMessage("")
+      }, 5000)
+    }
+  }
+
+  const handleDownloadTemplate = (template: DocumentTemplate) => {
+    const link = document.createElement('a')
+    link.href = template.url
+    link.download = template.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const getTemplateForDocument = (documentType: string, index?: number) => {
+    return documentTemplates.find(template => {
+      if (documentType === "form18" && index !== undefined) {
+        return template.document_type === documentType && template.director_index === index
+      }
+      return template.document_type === documentType && template.director_index === null
+    })
   }
 
   return (
@@ -81,6 +226,13 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
             <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
           </Alert>
         )}
+        {errorMessage && (
+          <Alert className="mb-6 bg-red-50 border-red-200">
+            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertTitle className="text-red-700">Error</AlertTitle>
+            <AlertDescription className="text-red-700">{errorMessage}</AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Upload Document Templates</h3>
@@ -95,6 +247,7 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <Input
                     id="form1"
                     type="file"
+                    disabled={uploading === 'form1'}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         handleFileUpload("form1", e.target.files[0])
@@ -102,10 +255,24 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                     }}
                   />
                 </div>
-                {uploadedFiles.form1 && (
+                {uploading === 'form1' && (
+                  <div className="flex items-center mt-2">
+                    <Upload className="h-4 w-4 animate-spin mr-2" />
+                    <p className="text-sm text-blue-600">Uploading...</p>
+                  </div>
+                )}
+                {(uploadedFiles.form1 || getTemplateForDocument("form1")) && (
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm text-green-600">Uploaded: {uploadedFiles.form1.name}</p>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveDocument("form1")} className="h-8 w-8 p-0">
+                    <p className="text-sm text-green-600">
+                      {uploadedFiles.form1 ? `Uploaded: ${uploadedFiles.form1.name}` :
+                        getTemplateForDocument("form1") ? `Template: ${getTemplateForDocument("form1")?.name}` : ''}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveDocument("form1")}
+                      className="h-8 w-8 p-0"
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -118,6 +285,7 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <Input
                     id="letterOfEngagement"
                     type="file"
+                    disabled={uploading === 'letterOfEngagement'}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         handleFileUpload("letterOfEngagement", e.target.files[0])
@@ -125,10 +293,24 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                     }}
                   />
                 </div>
-                {uploadedFiles.letterOfEngagement && (
+                {uploading === 'letterOfEngagement' && (
+                  <div className="flex items-center mt-2">
+                    <Upload className="h-4 w-4 animate-spin mr-2" />
+                    <p className="text-sm text-blue-600">Uploading...</p>
+                  </div>
+                )}
+                {(uploadedFiles.letterOfEngagement || getTemplateForDocument("letterOfEngagement")) && (
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm text-green-600">Uploaded: {uploadedFiles.letterOfEngagement.name}</p>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveDocument("letterOfEngagement")} className="h-8 w-8 p-0">
+                    <p className="text-sm text-green-600">
+                      {uploadedFiles.letterOfEngagement ? `Uploaded: ${uploadedFiles.letterOfEngagement.name}` :
+                        getTemplateForDocument("letterOfEngagement") ? `Template: ${getTemplateForDocument("letterOfEngagement")?.name}` : ''}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveDocument("letterOfEngagement")}
+                      className="h-8 w-8 p-0"
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -141,6 +323,7 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <Input
                     id="aoa"
                     type="file"
+                    disabled={uploading === 'aoa'}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         handleFileUpload("aoa", e.target.files[0])
@@ -148,10 +331,24 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                     }}
                   />
                 </div>
-                {uploadedFiles.aoa && (
+                {uploading === 'aoa' && (
+                  <div className="flex items-center mt-2">
+                    <Upload className="h-4 w-4 animate-spin mr-2" />
+                    <p className="text-sm text-blue-600">Uploading...</p>
+                  </div>
+                )}
+                {(uploadedFiles.aoa || getTemplateForDocument("aoa")) && (
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm text-green-600">Uploaded: {uploadedFiles.aoa.name}</p>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveDocument("aoa")} className="h-8 w-8 p-0">
+                    <p className="text-sm text-green-600">
+                      {uploadedFiles.aoa ? `Uploaded: ${uploadedFiles.aoa.name}` :
+                        getTemplateForDocument("aoa") ? `Template: ${getTemplateForDocument("aoa")?.name}` : ''}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveDocument("aoa")}
+                      className="h-8 w-8 p-0"
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -167,6 +364,7 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                     <Input
                       id={`form18-${idx}`}
                       type="file"
+                      disabled={uploading === `form18-${idx}`}
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           handleFileUpload("form18", e.target.files[0], idx)
@@ -174,10 +372,24 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                       }}
                     />
                   </div>
-                  {uploadedFiles.form18 && uploadedFiles.form18[idx] && (
+                  {uploading === `form18-${idx}` && (
+                    <div className="flex items-center mt-2">
+                      <Upload className="h-4 w-4 animate-spin mr-2" />
+                      <p className="text-sm text-blue-600">Uploading...</p>
+                    </div>
+                  )}
+                  {(uploadedFiles.form18?.[idx] || getTemplateForDocument("form18", idx)) && (
                     <div className="flex items-center justify-between mt-2">
-                      <p className="text-sm text-green-600">Uploaded: {uploadedFiles.form18[idx]?.name}</p>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveDocument("form18", idx)} className="h-8 w-8 p-0">
+                      <p className="text-sm text-green-600">
+                        {uploadedFiles.form18?.[idx] ? `Uploaded: ${uploadedFiles.form18[idx]?.name}` :
+                          getTemplateForDocument("form18", idx) ? `Template: ${getTemplateForDocument("form18", idx)?.name}` : ''}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveDocument("form18", idx)}
+                        className="h-8 w-8 p-0"
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -185,9 +397,6 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                 </div>
               ))}
             </div>
-            <Button onClick={handleSaveDocuments} className="mt-4">
-              Save Document Templates
-            </Button>
           </div>
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Current Templates</h3>
@@ -202,23 +411,16 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <div>
                     <p className="font-medium">FORM 1</p>
                     <p className="text-xs text-muted-foreground">
-                      {uploadedFiles.form1 ? "Template available" : "No template uploaded"}
+                      {getTemplateForDocument("form1") ? "Template available" : "No template uploaded"}
                     </p>
                   </div>
                 </div>
-                {uploadedFiles.form1 && (
-                  <Button variant="outline" size="sm" onClick={() => {
-                    if (uploadedFiles.form1) {
-                      const url = URL.createObjectURL(uploadedFiles.form1)
-                      const link = document.createElement("a")
-                      link.href = url
-                      link.download = uploadedFiles.form1.name
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                      URL.revokeObjectURL(url)
-                    }
-                  }}>
+                {getTemplateForDocument("form1") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadTemplate(getTemplateForDocument("form1")!)}
+                  >
                     <Download className="h-4 w-4 mr-1" /> Download
                   </Button>
                 )}
@@ -230,23 +432,16 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <div>
                     <p className="font-medium">Letter Of Engagement</p>
                     <p className="text-xs text-muted-foreground">
-                      {uploadedFiles.letterOfEngagement ? "Template available" : "No template uploaded"}
+                      {getTemplateForDocument("letterOfEngagement") ? "Template available" : "No template uploaded"}
                     </p>
                   </div>
                 </div>
-                {uploadedFiles.letterOfEngagement && (
-                  <Button variant="outline" size="sm" onClick={() => {
-                    if (uploadedFiles.letterOfEngagement) {
-                      const url = URL.createObjectURL(uploadedFiles.letterOfEngagement)
-                      const link = document.createElement("a")
-                      link.href = url
-                      link.download = uploadedFiles.letterOfEngagement.name
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                      URL.revokeObjectURL(url)
-                    }
-                  }}>
+                {getTemplateForDocument("letterOfEngagement") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadTemplate(getTemplateForDocument("letterOfEngagement")!)}
+                  >
                     <Download className="h-4 w-4 mr-1" /> Download
                   </Button>
                 )}
@@ -258,23 +453,16 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <div>
                     <p className="font-medium">Articles of Association (AOA)</p>
                     <p className="text-xs text-muted-foreground">
-                      {uploadedFiles.aoa ? "Template available" : "No template uploaded"}
+                      {getTemplateForDocument("aoa") ? "Template available" : "No template uploaded"}
                     </p>
                   </div>
                 </div>
-                {uploadedFiles.aoa && (
-                  <Button variant="outline" size="sm" onClick={() => {
-                    if (uploadedFiles.aoa) {
-                      const url = URL.createObjectURL(uploadedFiles.aoa)
-                      const link = document.createElement("a")
-                      link.href = url
-                      link.download = uploadedFiles.aoa.name
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                      URL.revokeObjectURL(url)
-                    }
-                  }}>
+                {getTemplateForDocument("aoa") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadTemplate(getTemplateForDocument("aoa")!)}
+                  >
                     <Download className="h-4 w-4 mr-1" /> Download
                   </Button>
                 )}
@@ -285,26 +473,18 @@ export default function DocumentsManagement({ documents, directors, onUpdateDocu
                   <div className="flex items-center">
                     <FileText className="h-5 w-5 mr-2 text-primary" />
                     <div>
-                      <p className="font-medium">FORM 18 - {director.name || `Director ${idx + 1}`}</p>
+                      <p className="font-medium">FORM 18 - {director.name || director.fullName || `Director ${idx + 1}`}</p>
                       <p className="text-xs text-muted-foreground">
-                        {uploadedFiles.form18[idx] ? "Template available" : "No template uploaded"}
+                        {getTemplateForDocument("form18", idx) ? "Template available" : "No template uploaded"}
                       </p>
                     </div>
                   </div>
-                  {uploadedFiles.form18[idx] && (
-                    <Button variant="outline" size="sm" onClick={() => {
-                      const file = uploadedFiles.form18[idx]
-                      if (file) {
-                        const url = URL.createObjectURL(file)
-                        const link = document.createElement("a")
-                        link.href = url
-                        link.download = file.name
-                        document.body.appendChild(link)
-                        link.click()
-                        document.body.removeChild(link)
-                        URL.revokeObjectURL(url)
-                      }
-                    }}>
+                  {getTemplateForDocument("form18", idx) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadTemplate(getTemplateForDocument("form18", idx)!)}
+                    >
                       <Download className="h-4 w-4 mr-1" /> Download
                     </Button>
                   )}
