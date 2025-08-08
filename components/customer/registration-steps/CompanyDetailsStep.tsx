@@ -72,7 +72,7 @@ const formSchema = z.object({
   companyNameEnglish: z.string().min(1, "Company name in English is required"),
   companyNameSinhala: z.string().min(1, "Company name in Sinhala is required"),
   isForeignOwned: z.string().min(1, "Please select if company is foreign owned"),
-  businessAddressNumber: z.string().min(1, "Business address number is required"),
+  businessAddressNumber: z.string().optional(),
   businessAddressStreet: z.string().min(1, "Business address street is required"),
   businessAddressCity: z.string().min(1, "Business address city is required"),
   postalCode: z.string().min(1, "Postal code is required"),
@@ -869,9 +869,9 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
                 name="businessAddressNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Business Address Number <span className="text-destructive">*</span></FormLabel>
+                    <FormLabel>Business Address Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter address number" {...field} />
+                      <Input placeholder="Enter address number (optional)" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -925,7 +925,7 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
 
             {/* Shares & Shareholder Details */}
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h3 className="text-lg font-medium">Shares & Shareholder Details</h3>
                 <div className="flex gap-2">
                   <Button
@@ -976,9 +976,9 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
                   <h4 className="text-sm font-medium">Current Shareholders:</h4>
-                  <Badge variant="outline" className="text-sm">
+                  <Badge variant="outline" className="text-sm w-fit sm:w-auto self-end sm:self-auto">
                     Total: {shareholderFields.length}
                   </Badge>
                 </div>
@@ -1441,7 +1441,7 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
 
               {/* Director Details */}
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                   <h3 className="text-lg font-medium">Director Details</h3>
                   <Button type="button" variant="outline" size="sm" onClick={handleAddDirector}>
                     <PlusCircle className="h-4 w-4 mr-2" /> Add More Director
@@ -1836,9 +1836,9 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
                   name="importsToAdd"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Imports that need to be added</FormLabel>
+                      <FormLabel>Imports that need to be added <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="Specify imports" {...field} />
+                        <Input placeholder="Specify imports (required)" {...field} />
                       </FormControl>
                       <FormDescription>List any specific imports your business will handle</FormDescription>
                       <FormMessage />
@@ -1854,9 +1854,9 @@ export default function CompanyDetailsStep({ companyData, onComplete, isResubmis
                   name="exportsToAdd"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Exports that need to be added</FormLabel>
+                      <FormLabel>Exports that need to be added <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="Specify exports" {...field} />
+                        <Input placeholder="Specify exports (required)" {...field} />
                       </FormControl>
                       <FormDescription>List any specific exports your business will handle</FormDescription>
                       <FormMessage />
