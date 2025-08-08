@@ -95,10 +95,8 @@ export function Header({ user, navigateTo, onLogout, centerLogo = false }: Heade
         return null;
     };
 
-    // Only show header if logo exists or user is logged in
-    if (!logo && !user) {
-        return null;
-    }
+    // Always show header - we now have a default logo
+    // The header will be shown on all pages including login/signup
 
     return (
         <header
@@ -109,26 +107,27 @@ export function Header({ user, navigateTo, onLogout, centerLogo = false }: Heade
                 <div className={`flex items-center h-full ${centerLogo ? 'justify-center' : 'justify-between'}`}>
                     {/* Logo Section */}
                     <div className="flex items-center">
-                        {logo && (
-                            <img
-                                src={logo}
-                                alt="Application Logo"
-                                className="h-8 w-auto max-w-[200px] object-contain cursor-pointer"
-                                onClick={() => {
-                                    if (navigateTo) {
-                                        if (user?.role === "admin") {
-                                            // Set the companies tab for admin dashboard
-                                            if (typeof window !== 'undefined') {
-                                                sessionStorage.setItem('adminDashboardTab', 'companies');
-                                            }
-                                            navigateTo('adminDashboard');
-                                        } else {
-                                            navigateTo('customerDashboard');
+                        <img
+                            src={logo || "/placeholder-logo.svg"}
+                            alt="Application Logo"
+                            className="h-8 w-auto max-w-[200px] object-contain cursor-pointer"
+                            onClick={() => {
+                                if (navigateTo) {
+                                    if (!user) {
+                                        // If no user is logged in, redirect to login page
+                                        navigateTo('login');
+                                    } else if (user?.role === "admin") {
+                                        // Set the companies tab for admin dashboard
+                                        if (typeof window !== 'undefined') {
+                                            sessionStorage.setItem('adminDashboardTab', 'companies');
                                         }
+                                        navigateTo('adminDashboard');
+                                    } else {
+                                        navigateTo('customerDashboard');
                                     }
-                                }}
-                            />
-                        )}
+                                }
+                            }}
+                        />
                     </div>
 
                     {/* User Navigation Section - Only show if not centering logo */}
