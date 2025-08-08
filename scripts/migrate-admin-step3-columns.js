@@ -13,7 +13,7 @@ async function migrateAdminStep3Columns() {
     let pool;
 
     try {
-        console.log('🚀 Starting admin step3 columns migration...');
+        console.log('🚀 Starting comprehensive database columns migration...');
         pool = mysql.createPool(dbConfig);
         connection = await pool.getConnection();
 
@@ -30,47 +30,100 @@ async function migrateAdminStep3Columns() {
 
         console.log(`📊 Found ${existingColumns.length} existing columns in registrations table`);
 
-        // Define missing columns for admin step3 functionality
-        const missingColumns = [
-            { name: 'documents_published_at', type: 'TIMESTAMP NULL' },
-            { name: 'step3_signed_additional_doc', type: 'JSON' }
+        // Define ALL required columns based on the API route SQL query
+        const requiredColumns = [
+            // Basic registration fields
+            { name: 'id', type: 'VARCHAR(255) PRIMARY KEY' },
+            { name: 'company_name', type: 'VARCHAR(255)' },
+            { name: 'contact_person_name', type: 'VARCHAR(255)' },
+            { name: 'contact_person_email', type: 'VARCHAR(255)' },
+            { name: 'contact_person_phone', type: 'VARCHAR(255)' },
+            { name: 'selected_package', type: 'VARCHAR(255)' },
+            { name: 'payment_method', type: 'VARCHAR(255)' },
+            { name: 'current_step', type: 'VARCHAR(255)' },
+            { name: 'status', type: 'VARCHAR(255)' },
+            { name: 'payment_approved', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'details_approved', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'documents_approved', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'documents_published', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'documents_acknowledged', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'payment_receipt', type: 'JSON' },
+            { name: 'balance_payment_receipt', type: 'JSON' },
+
+            // Document fields
+            { name: 'form1', type: 'JSON' },
+            { name: 'letter_of_engagement', type: 'JSON' },
+            { name: 'aoa', type: 'JSON' },
+            { name: 'form18', type: 'JSON' },
+            { name: 'address_proof', type: 'JSON' },
+
+            // Customer document fields
+            { name: 'customer_form1', type: 'JSON' },
+            { name: 'customer_letter_of_engagement', type: 'JSON' },
+            { name: 'customer_aoa', type: 'JSON' },
+            { name: 'customer_form18', type: 'JSON' },
+            { name: 'customer_address_proof', type: 'JSON' },
+
+            // Additional document fields
+            { name: 'incorporation_certificate', type: 'JSON' },
+            { name: 'step3_additional_doc', type: 'JSON' },
+            { name: 'step3_signed_additional_doc', type: 'JSON' },
+            { name: 'step4_final_additional_doc', type: 'JSON' },
+
+            // Company details fields
+            { name: 'company_name_english', type: 'VARCHAR(255)' },
+            { name: 'company_name_sinhala', type: 'VARCHAR(255)' },
+            { name: 'is_foreign_owned', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'business_address_number', type: 'VARCHAR(255)' },
+            { name: 'business_address_street', type: 'VARCHAR(255)' },
+            { name: 'business_address_city', type: 'VARCHAR(255)' },
+            { name: 'postal_code', type: 'VARCHAR(255)' },
+            { name: 'share_price', type: 'DECIMAL(10,2)' },
+            { name: 'number_of_shareholders', type: 'INT' },
+            { name: 'shareholders', type: 'JSON' },
+            { name: 'make_simple_books_secretary', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'number_of_directors', type: 'INT' },
+            { name: 'directors', type: 'JSON' },
+            { name: 'import_export_status', type: 'VARCHAR(255)' },
+            { name: 'imports_to_add', type: 'TEXT' },
+            { name: 'exports_to_add', type: 'TEXT' },
+            { name: 'other_business_activities', type: 'TEXT' },
+            { name: 'drama_sedaka_division', type: 'VARCHAR(255)' },
+            { name: 'business_email', type: 'VARCHAR(255)' },
+            { name: 'business_contact_number', type: 'VARCHAR(255)' },
+
+            // Timestamp fields
+            { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' },
+            { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+            { name: 'documents_published_at', type: 'TIMESTAMP NULL' }
         ];
+
+        // Find missing columns
+        const missingColumns = requiredColumns.filter(col => !existingColumns.includes(col.name));
+
+        console.log(`\n🔍 Found ${missingColumns.length} missing columns:`);
+        missingColumns.forEach(col => console.log(`  - ${col.name} (${col.type})`));
 
         // Add missing columns
         let addedCount = 0;
         for (const column of missingColumns) {
-            if (!existingColumns.includes(column.name)) {
-                try {
-                    await connection.execute(`ALTER TABLE registrations ADD COLUMN ${column.name} ${column.type}`);
-                    console.log(`✅ Added missing column: ${column.name}`);
-                    addedCount++;
-                } catch (error) {
-                    if (error.code !== 'ER_DUP_FIELDNAME') {
-                        console.error(`❌ Error adding column ${column.name}:`, error.message);
-                    } else {
-                        console.log(`⚠️  Column already exists: ${column.name}`);
-                    }
-                }
-            } else {
-                console.log(`⚠️  Column already exists: ${column.name}`);
-            }
-        }
-
-        // Verify step3_additional_doc column exists
-        if (!existingColumns.includes('step3_additional_doc')) {
             try {
-                await connection.execute(`ALTER TABLE registrations ADD COLUMN step3_additional_doc JSON`);
-                console.log(`✅ Added missing column: step3_additional_doc`);
+                // Skip primary key column if it already exists
+                if (column.type.includes('PRIMARY KEY') && existingColumns.includes(column.name)) {
+                    console.log(`⚠️  Primary key column already exists: ${column.name}`);
+                    continue;
+                }
+
+                await connection.execute(`ALTER TABLE registrations ADD COLUMN ${column.name} ${column.type}`);
+                console.log(`✅ Added missing column: ${column.name}`);
                 addedCount++;
             } catch (error) {
                 if (error.code !== 'ER_DUP_FIELDNAME') {
-                    console.error(`❌ Error adding column step3_additional_doc:`, error.message);
+                    console.error(`❌ Error adding column ${column.name}:`, error.message);
                 } else {
-                    console.log(`⚠️  Column already exists: step3_additional_doc`);
+                    console.log(`⚠️  Column already exists: ${column.name}`);
                 }
             }
-        } else {
-            console.log(`⚠️  Column already exists: step3_additional_doc`);
         }
 
         if (addedCount > 0) {
@@ -79,23 +132,23 @@ async function migrateAdminStep3Columns() {
             console.log('\n✅ All required columns already exist. No migration needed.');
         }
 
-        // Show final table structure for step3 related columns
-        console.log('\n📋 Step3 related columns in registrations table:');
+        // Show final table structure
+        console.log('\n📋 Complete registrations table structure:');
         const [finalColumns] = await connection.execute('DESCRIBE registrations');
-        const step3Columns = finalColumns.filter(col =>
-            col.Field.includes('step3') ||
-            col.Field.includes('documents_published') ||
-            col.Field.includes('form1') ||
-            col.Field.includes('letter_of_engagement') ||
-            col.Field.includes('aoa') ||
-            col.Field.includes('form18')
-        );
-
-        step3Columns.forEach(col => {
-            console.log(`- ${col.Field} (${col.Type})`);
+        finalColumns.forEach(col => {
+            console.log(`- ${col.Field} (${col.Type})${col.Null === 'NO' ? ' NOT NULL' : ''}${col.Key === 'PRI' ? ' PRIMARY KEY' : ''}`);
         });
 
-        console.log('\n🎉 Admin step3 columns migration completed successfully!');
+        // Verify all required columns exist
+        const finalColumnNames = finalColumns.map(col => col.Field);
+        const stillMissing = requiredColumns.filter(col => !finalColumnNames.includes(col.name));
+
+        if (stillMissing.length > 0) {
+            console.log('\n❌ Still missing columns after migration:');
+            stillMissing.forEach(col => console.log(`  - ${col.name}`));
+        } else {
+            console.log('\n🎉 All required columns are present! Database migration is complete.');
+        }
 
     } catch (error) {
         console.error('❌ Migration failed:', error);
