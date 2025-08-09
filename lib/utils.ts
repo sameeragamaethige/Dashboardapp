@@ -1,8 +1,28 @@
-import { clsx, type ClassValue } from "clsx"
+import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+// Safe JSON parse function that handles invalid JSON gracefully
+export function safeJsonParse(value: any): any {
+  if (!value || typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    // Check if the value is already an object (might be stored as [object Object])
+    if (value === '[object Object]' || value === '[object Array]') {
+      console.warn('Found [object Object] or [object Array] string, returning null');
+      return null;
+    }
+
+    return JSON.parse(value);
+  } catch (error) {
+    console.warn('Failed to parse JSON:', value, 'Error:', error);
+    return null;
+  }
 }
 
 // Types for our application data

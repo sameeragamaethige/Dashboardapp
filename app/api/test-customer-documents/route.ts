@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database';
+import { safeJsonParse } from '@/lib/utils';
 
 // GET test customer documents
 export async function GET() {
@@ -33,19 +34,19 @@ export async function GET() {
         console.log('  - customer_address_proof:', row.customer_address_proof ? 'has data' : 'no data');
 
         if (row.customer_form1) {
-            customerDocs.form1 = JSON.parse(row.customer_form1);
+            customerDocs.form1 = safeJsonParse(row.customer_form1);
         }
         if (row.customer_letter_of_engagement) {
-            customerDocs.letterOfEngagement = JSON.parse(row.customer_letter_of_engagement);
+            customerDocs.letterOfEngagement = safeJsonParse(row.customer_letter_of_engagement);
         }
         if (row.customer_aoa) {
-            customerDocs.aoa = JSON.parse(row.customer_aoa);
+            customerDocs.aoa = safeJsonParse(row.customer_aoa);
         }
         if (row.customer_form18) {
-            customerDocs.form18 = JSON.parse(row.customer_form18);
+            customerDocs.form18 = safeJsonParse(row.customer_form18);
         }
         if (row.customer_address_proof) {
-            customerDocs.addressProof = JSON.parse(row.customer_address_proof);
+            customerDocs.addressProof = safeJsonParse(row.customer_address_proof);
         }
 
         console.log('🔍 TEST API Debug - Combined customerDocs:', customerDocs);
@@ -56,7 +57,7 @@ export async function GET() {
         return NextResponse.json({
             registrationId: row.id,
             companyName: row.company_name,
-            oldCustomerDocuments: row.customer_documents ? JSON.parse(row.customer_documents) : null,
+            oldCustomerDocuments: row.customer_documents ? safeJsonParse(row.customer_documents) : null,
             newCustomerDocuments: result,
             debug: {
                 hasOldData: !!row.customer_documents,
