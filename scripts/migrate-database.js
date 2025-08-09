@@ -4,7 +4,7 @@ async function migrateDatabase() {
     const dbConfig = {
         host: 'localhost',
         user: 'root',
-        password: null,
+        password: 'wp@XRT.2003',
         database: 'banana_db',
         port: 3306,
     };

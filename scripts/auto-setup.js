@@ -64,7 +64,7 @@ async function initializeDatabase() {
     const dbConfig = {
         host: 'localhost',
         user: 'root',
-        password: null,
+        password: 'wp@XRT.2003',
         port: 3306,
     };
 
