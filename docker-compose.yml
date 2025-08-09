@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  dashboard-app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    volumes:
+      # Mount any persistent data directories if needed
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
